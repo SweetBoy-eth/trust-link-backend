@@ -5,6 +5,10 @@ export class CreateEscrowDto {
   @MinLength(3)
   itemName!: string;
 
+  @IsString()
+  @MinLength(3)
+  itemRef!: string;
+
   @IsNumber()
   @IsPositive()
   amount!: number;

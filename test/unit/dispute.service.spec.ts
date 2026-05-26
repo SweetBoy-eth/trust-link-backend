@@ -21,6 +21,7 @@ import { JwtGuard } from '../../src/auth/guards/jwt.guard';
 const shippedEscrow: EscrowRecord = {
   id: 'escrow-1',
   itemName: 'Vintage camera',
+  itemRef: 'camera-001',
   amount: 200,
   currency: 'USDC',
   buyerAddress: 'buyer-address',

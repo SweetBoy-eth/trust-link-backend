@@ -8,11 +8,18 @@ export type EscrowState =
   | 'COMPLETED'
   | 'REFUNDED';
 export type NotificationChannel = 'EMAIL' | 'SMS';
-export type NotificationType = 'FUNDED' | 'SHIPPED';
+export type NotificationType =
+  | 'FUNDED'
+  | 'SHIPPED'
+  | 'DELIVERED'
+  | 'DISPUTED'
+  | 'COMPLETED'
+  | 'REFUNDED';
 
 export interface EscrowRecord {
   id: string;
   itemName: string;
+  itemRef: string;
   amount: number;
   currency: string;
   buyerAddress: string;
@@ -49,6 +56,8 @@ type EscrowUpdateInput = Partial<
 
 interface EscrowWhereInput {
   state?: EscrowState;
+  vendorAddress?: string;
+  itemRef?: string;
   shippedAt?: { lte: Date };
 }
 
@@ -90,6 +99,14 @@ export class PrismaService implements OnModuleDestroy {
       let results = [...this.escrows.values()];
       if (where?.state) {
         results = results.filter((e) => e.state === where.state);
+      }
+      if (where?.vendorAddress) {
+        results = results.filter(
+          (e) => e.vendorAddress === where.vendorAddress,
+        );
+      }
+      if (where?.itemRef) {
+        results = results.filter((e) => e.itemRef === where.itemRef);
       }
       if (where?.shippedAt?.lte) {
         const lte = where.shippedAt.lte;

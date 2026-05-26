@@ -15,21 +15,22 @@ import { UpdateShipmentDto } from './dto/update-shipment.dto';
 import { EscrowService } from './escrow.service';
 
 @Controller('escrow')
-@UseGuards(JwtGuard)
 export class EscrowController {
   constructor(private readonly escrowService: EscrowService) {}
 
   @Post()
+  @UseGuards(JwtGuard)
   createEscrow(@Body() dto: CreateEscrowDto, @CurrentUser() user: AuthUser) {
     return this.escrowService.createEscrow(dto, user.address);
   }
 
   @Get(':id')
   getEscrow(@Param('id') id: string) {
-    return this.escrowService.findById(id);
+    return this.escrowService.getPublicEscrow(id);
   }
 
   @Patch(':id/ship')
+  @UseGuards(JwtGuard)
   shipEscrow(
     @Param('id') id: string,
     @Body() dto: UpdateShipmentDto,

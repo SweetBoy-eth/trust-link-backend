@@ -15,8 +15,43 @@ export class EscrowRepository {
     });
   }
 
+  findByVendorAndItem(
+    vendorAddress: string,
+    itemRef: string,
+  ): Promise<EscrowRecord | null> {
+    return this.prisma.escrow
+      .findMany({
+        where: { vendorAddress, itemRef },
+      })
+      .then((results) => results[0] ?? null);
+  }
+
   findById(id: string): Promise<EscrowRecord | null> {
     return this.prisma.escrow.findUnique({ where: { id } });
+  }
+
+  findVendorEscrows(
+    vendorAddress: string,
+    state: string | undefined,
+    sort: 'date' | 'amount',
+    order: 'asc' | 'desc',
+    page: number,
+    limit: number,
+  ): Promise<{ data: EscrowRecord[]; total: number }> {
+    return this.prisma.escrow.findMany({
+      where: { vendorAddress, state: state as any },
+    }).then((records) => {
+      const sorted = records.sort((a, b) => {
+        const primary = sort === 'amount' ? a.amount - b.amount :
+          a.createdAt.getTime() - b.createdAt.getTime();
+        return order === 'asc' ? primary : -primary;
+      });
+
+      const total = sorted.length;
+      const start = (page - 1) * limit;
+      const data = sorted.slice(start, start + limit);
+      return { data, total };
+    });
   }
 
   markShipped(id: string, trackingId: string): Promise<EscrowRecord> {
