@@ -6,17 +6,21 @@ import {
   TransactionBuilder,
   WebAuth,
 } from '@stellar/stellar-sdk';
-
-export const SEP10_JWT_SECRET =
-  process.env.SEP10_JWT_SECRET ?? 'trustlink-sep10-secret';
+import { ConfigService } from '../../config/config.service';
 
 @Injectable()
 export class Sep10Service {
   /** Server-side signing keypair — rotated per process start. */
   private readonly serverKeypair = Keypair.random();
-  private readonly networkPassphrase = Networks.TESTNET;
+  private readonly networkPassphrase: string;
   private readonly homeDomain = 'trust-link.local';
   private readonly webAuthDomain = 'trust-link.local';
+
+  constructor(private readonly configService: ConfigService) {
+    this.networkPassphrase = this.configService.get('STELLAR_NETWORK') === 'MAINNET' 
+      ? Networks.PUBLIC 
+      : Networks.TESTNET;
+  }
   /** Replay-prevention store: transaction hashes already consumed. */
   private readonly usedChallenges = new Set<string>();
 
@@ -98,7 +102,7 @@ export class Sep10Service {
       JSON.stringify({ alg: 'HS256', typ: 'JWT' }),
     ).toString('base64url');
     const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
-    const sig = createHmac('sha256', SEP10_JWT_SECRET)
+    const sig = createHmac('sha256', this.configService.get('SEP10_JWT_SECRET'))
       .update(`${header}.${body}`)
       .digest('base64url');
     return `${header}.${body}.${sig}`;
