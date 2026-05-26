@@ -16,10 +16,16 @@ model Escrow {
   vendorAddress String
   state         String   @default("FUNDED")
   trackingId    String?
+  deliveredAt   DateTime?
+  autoReleaseSubmittedAt DateTime?
+  autoReleaseTxHash      String?
+  deliveryRecordedAt     DateTime?
+  disputeId     String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   notifications Notification[]
+  disputes      Dispute[]
 }
 
 model Notification {
@@ -30,6 +36,18 @@ model Notification {
   recipientAddress  String
   providerMessageId String?
   createdAt         DateTime @default(now())
+
+  escrow Escrow @relation(fields: [escrowId], references: [id], onDelete: Cascade)
+}
+
+model Dispute {
+  id         String   @id @default(cuid())
+  escrowId   String   @unique
+  reason     String
+  status     String   @default("OPEN")
+  resolvedAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   escrow Escrow @relation(fields: [escrowId], references: [id], onDelete: Cascade)
 }

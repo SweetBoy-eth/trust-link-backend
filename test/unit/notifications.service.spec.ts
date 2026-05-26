@@ -23,6 +23,11 @@ describe('NotificationsService (issue #18)', () => {
     vendorAddress: 'vendor-address',
     state: 'FUNDED',
     trackingId: null,
+    deliveredAt: null,
+    deliveryRecordedAt: null,
+    autoReleaseSubmittedAt: null,
+    autoReleaseTxHash: null,
+    disputeId: null,
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     updatedAt: new Date('2026-01-01T00:00:00.000Z'),
   };
