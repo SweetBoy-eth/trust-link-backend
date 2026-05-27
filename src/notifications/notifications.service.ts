@@ -72,7 +72,7 @@ export class NotificationsService {
   }
 
   private async dispatchEmail(
-    type: 'FUNDED' | 'SHIPPED',
+    type: NotificationType,
     escrow: EscrowRecord,
     recipientAddress: string,
   ): Promise<void> {
@@ -103,7 +103,7 @@ export class NotificationsService {
   }
 
   private async dispatchSms(
-    type: 'FUNDED' | 'SHIPPED',
+    type: NotificationType,
     escrow: EscrowRecord,
     recipientAddress: string,
   ): Promise<void> {

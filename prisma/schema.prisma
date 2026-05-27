@@ -21,6 +21,7 @@ model Escrow {
   autoReleaseTxHash      String?
   deliveryRecordedAt     DateTime?
   disputeId     String?
+  cancelledAt   DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -50,4 +51,14 @@ model Dispute {
   updatedAt  DateTime @updatedAt
 
   escrow Escrow @relation(fields: [escrowId], references: [id], onDelete: Cascade)
+}
+
+model VendorProfile {
+  address      String   @id
+  businessName String
+  email        String?
+  phone        String?
+  description  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }

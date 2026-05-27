@@ -7,7 +7,8 @@ export type EscrowState =
   | 'COMPLETED'
   | 'RELEASED'
   | 'DISPUTED'
-  | 'REFUNDED';
+  | 'REFUNDED'
+  | 'CANCELLED';
 export type NotificationChannel = 'EMAIL' | 'SMS';
 export type NotificationType =
   | 'FUNDED'
@@ -34,6 +35,17 @@ export interface EscrowRecord {
   autoReleaseSubmittedAt: Date | null;
   autoReleaseTxHash: string | null;
   disputeId: string | null;
+  cancelledAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface VendorProfileRecord {
+  address: string;
+  businessName: string;
+  email: string | null;
+  phone: string | null;
+  description: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -69,6 +81,7 @@ type EscrowCreateInput = Omit<
   | 'autoReleaseSubmittedAt'
   | 'autoReleaseTxHash'
   | 'disputeId'
+  | 'cancelledAt'
   | 'createdAt'
   | 'updatedAt'
 > & {
@@ -80,6 +93,7 @@ type EscrowCreateInput = Omit<
   autoReleaseSubmittedAt?: Date | null;
   autoReleaseTxHash?: string | null;
   disputeId?: string | null;
+  cancelledAt?: Date | null;
 };
 
 type DisputeCreateInput = Omit<
@@ -101,7 +115,17 @@ type EscrowUpdateInput = Partial<
     | 'autoReleaseSubmittedAt'
     | 'autoReleaseTxHash'
     | 'disputeId'
+    | 'cancelledAt'
   >
+>;
+
+type VendorProfileCreateInput = Omit<
+  VendorProfileRecord,
+  'createdAt' | 'updatedAt'
+>;
+
+type VendorProfileUpdateInput = Partial<
+  Omit<VendorProfileRecord, 'address' | 'createdAt' | 'updatedAt'>
 >;
 
 type DisputeUpdateInput = Partial<
@@ -113,6 +137,7 @@ export class PrismaService implements OnModuleDestroy {
   private escrows = new Map<string, EscrowRecord>();
   private disputes = new Map<string, DisputeRecord>();
   private notifications = new Map<string, NotificationRecord>();
+  private vendorProfiles = new Map<string, VendorProfileRecord>();
   private escrowId = 1;
   private disputeId = 1;
   private notificationId = 1;
@@ -131,6 +156,7 @@ export class PrismaService implements OnModuleDestroy {
         autoReleaseSubmittedAt: data.autoReleaseSubmittedAt ?? null,
         autoReleaseTxHash: data.autoReleaseTxHash ?? null,
         disputeId: data.disputeId ?? null,
+        cancelledAt: data.cancelledAt ?? null,
         createdAt: now,
         updatedAt: now,
       };
@@ -160,7 +186,7 @@ export class PrismaService implements OnModuleDestroy {
         >
       > & { shippedAt?: { lte: Date } };
     } = {}): Promise<EscrowRecord[]> => {
-      const escrows = [...this.escrows.values()].filter((escrow) => {
+      let escrows = [...this.escrows.values()].filter((escrow) => {
         if (!where) {
           return true;
         }
@@ -173,6 +199,7 @@ export class PrismaService implements OnModuleDestroy {
           if (
             key === 'shippedAt' &&
             typeof value === 'object' &&
+            value !== null &&
             'lte' in value
           ) {
             const lte = (value as any).lte as Date;
@@ -182,6 +209,10 @@ export class PrismaService implements OnModuleDestroy {
           return escrow[key as keyof EscrowRecord] === value;
         });
       });
+
+      if (!where?.state) {
+        escrows = escrows.filter((e) => e.state !== 'CANCELLED');
+      }
 
       return Promise.resolve(escrows.map((escrow) => ({ ...escrow })));
     },
@@ -316,7 +347,61 @@ export class PrismaService implements OnModuleDestroy {
     },
   };
 
+  vendorProfile = {
+    create: ({
+      data,
+    }: {
+      data: VendorProfileCreateInput;
+    }): Promise<VendorProfileRecord> => {
+      if (this.vendorProfiles.has(data.address)) {
+        throw new Error(
+          `Vendor profile for ${data.address} already exists`,
+        );
+      }
+      const now = new Date();
+      const profile: VendorProfileRecord = {
+        ...data,
+        email: data.email ?? null,
+        phone: data.phone ?? null,
+        description: data.description ?? null,
+        createdAt: now,
+        updatedAt: now,
+      };
+      this.vendorProfiles.set(data.address, profile);
+      return Promise.resolve({ ...profile });
+    },
+    findUnique: ({
+      where,
+    }: {
+      where: { address: string };
+    }): Promise<VendorProfileRecord | null> => {
+      const profile = this.vendorProfiles.get(where.address);
+      return Promise.resolve(profile ? { ...profile } : null);
+    },
+    update: ({
+      where,
+      data,
+    }: {
+      where: { address: string };
+      data: VendorProfileUpdateInput;
+    }): Promise<VendorProfileRecord> => {
+      const existing = this.vendorProfiles.get(where.address);
+      if (!existing) {
+        throw new Error(`Vendor profile for ${where.address} not found`);
+      }
+      const updated = { ...existing, ...data, updatedAt: new Date() };
+      this.vendorProfiles.set(where.address, updated);
+      return Promise.resolve({ ...updated });
+    },
+    deleteMany: (): Promise<{ count: number }> => {
+      const count = this.vendorProfiles.size;
+      this.vendorProfiles.clear();
+      return Promise.resolve({ count });
+    },
+  };
+
   async reset(): Promise<void> {
+    await this.vendorProfile.deleteMany();
     await this.notification.deleteMany();
     await this.dispute.deleteMany();
     await this.escrow.deleteMany();
