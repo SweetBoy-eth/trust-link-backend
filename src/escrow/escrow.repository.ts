@@ -107,12 +107,6 @@ export class EscrowRepository {
     });
   }
 
-  findAutoReleaseEligible(cutoffDate: Date): Promise<EscrowRecord[]> {
-    return this.prisma.escrow.findMany({
-      where: { state: 'SHIPPED', shippedAt: { lte: cutoffDate } },
-    });
-  }
-
   markDelivered(id: string, deliveredAt = new Date()): Promise<EscrowRecord> {
     return this.prisma.escrow.update({
       where: { id },
@@ -135,6 +129,16 @@ export class EscrowRepository {
         state: 'COMPLETED',
         autoReleaseSubmittedAt: submittedAt,
         autoReleaseTxHash: txHash,
+      },
+    });
+  }
+
+  markCancelled(id: string): Promise<EscrowRecord> {
+    return this.prisma.escrow.update({
+      where: { id },
+      data: {
+        state: 'CANCELLED',
+        cancelledAt: new Date(),
       },
     });
   }
