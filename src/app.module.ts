@@ -11,6 +11,7 @@ import { RateLimitGuard } from './common/guards/rate-limit.guard';
 import { LoggerModule } from './common/logger/logger.module';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
 import { SecurityMiddleware } from './common/middleware/security.middleware';
+import { CacheModule } from './cache/cache.module';
 import { ConfigModule } from './config/config.module';
 import { EscrowModule } from './escrow/escrow.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -25,6 +26,7 @@ import { StressTestModule } from './stress-test/stress-test.module';
     ConfigModule,
     PrismaModule,
     LoggerModule,
+    CacheModule,
 
     // Auth
     Sep10Module,
