@@ -1,6 +1,7 @@
 import './tracing/tracing.bootstrap';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import compression from 'compression';
 import { AppModule } from './app.module';
 import { ConfigService } from './config/config.service';
 import { JsonLoggerService } from './common/logger/json-logger.service';
@@ -58,6 +59,11 @@ async function bootstrap() {
       app.enableCors({ origin: true });
     }
   }
+
+  // ── Gzip compression (issue #106) ─────────────────────────────────────────
+  // Applied before routing so every JSON response is compressed. The threshold
+  // (1 KB) avoids the overhead for tiny payloads that wouldn't benefit.
+  app.use(compression({ threshold: 1024 }));
 
   // ── Validation pipe ────────────────────────────────────────────────────────
   app.useGlobalPipes(

@@ -4,6 +4,8 @@ import { ConfigService as NestConfigService } from '@nestjs/config';
 export interface Config {
   PORT: number;
   DATABASE_URL: string;
+  DB_POOL_CONNECTION_LIMIT?: number;
+  DB_POOL_TIMEOUT_MS?: number;
   SEP10_JWT_SECRET: string;
   ADMIN_ADDRESS: string;
   NODE_ENV: 'development' | 'production' | 'test';
@@ -68,6 +70,31 @@ export class ConfigService {
       LOG_LEVEL: this.nestConfigService.get('LOG_LEVEL', { infer: true }),
       API_BASE_URL: this.nestConfigService.get('API_BASE_URL', { infer: true }),
     };
+  }
+
+  /**
+   * Builds the effective DATABASE_URL by appending Prisma connection-pool
+   * parameters when DB_POOL_CONNECTION_LIMIT or DB_POOL_TIMEOUT_MS are set.
+   *
+   * Prisma reads `connection_limit` and `pool_timeout` from the query string:
+   *   postgresql://user:pass@host:5432/db?connection_limit=25&pool_timeout=10
+   *
+   * Defaults: connection_limit = 10, pool_timeout = 10 (seconds).
+   */
+  getDatabaseUrl(): string {
+    const base = this.get('DATABASE_URL');
+    const limit = this.nestConfigService.get('DB_POOL_CONNECTION_LIMIT', { infer: true });
+    const timeoutMs = this.nestConfigService.get('DB_POOL_TIMEOUT_MS', { infer: true });
+
+    if (!limit && !timeoutMs) return base;
+
+    const url = new URL(base);
+    if (limit) url.searchParams.set('connection_limit', String(limit));
+    if (timeoutMs) {
+      // Prisma expects pool_timeout in seconds
+      url.searchParams.set('pool_timeout', String(Math.ceil(timeoutMs / 1000)));
+    }
+    return url.toString();
   }
 
   /**

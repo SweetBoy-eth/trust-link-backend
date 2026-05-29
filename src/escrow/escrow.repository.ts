@@ -240,22 +240,23 @@ export class EscrowRepository {
   /**
    * Returns SHIPPED escrows whose deliveredAt is older than 48 hours and
    * have no open dispute or existing auto-release transaction.
+   *
+   * All predicates are pushed to the database so the query uses the
+   * composite (state, deliveredAt) index rather than a full table scan
+   * followed by in-process filtering.
    */
   findAutoReleaseEligible(referenceTime = new Date()): Promise<EscrowRecord[]> {
     const threshold = new Date(referenceTime.getTime() - 48 * 60 * 60 * 1000);
 
-    return this.prisma.escrow
-      .findMany({ where: { state: 'SHIPPED' } })
-      .then((escrows) =>
-        escrows.filter(
-          (escrow) =>
-            escrow.deliveredAt !== null &&
-            escrow.deliveredAt <= threshold &&
-            escrow.disputeId === null &&
-            escrow.autoReleaseTxHash === null &&
-            escrow.autoReleaseSubmittedAt === null,
-        ),
-      );
+    return this.prisma.escrow.findMany({
+      where: {
+        state: 'SHIPPED',
+        deliveredAt: { lte: threshold },
+        disputeId: null,
+        autoReleaseTxHash: null,
+        autoReleaseSubmittedAt: null,
+      },
+    });
   }
 
   /**

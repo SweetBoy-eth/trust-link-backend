@@ -169,6 +169,11 @@ type DisputeUpdateInput = Partial<
 
 @Injectable()
 export class PrismaService implements OnModuleDestroy {
+  // databaseUrl is accepted so the module can pass the pool-tuned URL from
+  // ConfigService. The in-memory store does not use it, but a real PrismaClient
+  // replacement should forward it to `new PrismaClient({ datasources: { db: { url } } })`.
+  constructor(readonly databaseUrl?: string) {}
+
   private escrows = new Map<string, EscrowRecord>();
   private disputes = new Map<string, DisputeRecord>();
   private notifications = new Map<string, NotificationRecord>();
@@ -223,8 +228,13 @@ export class PrismaService implements OnModuleDestroy {
           | 'buyerAddress'
           | 'disputeId'
           | 'itemRef'
+          | 'autoReleaseTxHash'
+          | 'autoReleaseSubmittedAt'
         >
-      > & { shippedAt?: { lte: Date } };
+      > & {
+        shippedAt?: { lte: Date };
+        deliveredAt?: { lte: Date } | null;
+      };
     } = {}): Promise<EscrowRecord[]> => {
       let escrows = [...this.escrows.values()].filter((escrow) => {
         if (!where) {
@@ -237,13 +247,16 @@ export class PrismaService implements OnModuleDestroy {
           }
 
           if (
-            key === 'shippedAt' &&
+            (key === 'shippedAt' || key === 'deliveredAt') &&
             typeof value === 'object' &&
             value !== null &&
             'lte' in value
           ) {
-            const lte = (value as any).lte as Date;
-            return escrow.shippedAt != null && escrow.shippedAt <= lte;
+
+
+            const { lte } = value;
+            const field = key === 'shippedAt' ? escrow.shippedAt : escrow.deliveredAt;
+            return field !== null && field <= lte;
           }
 
           return escrow[key as keyof EscrowRecord] === value;
