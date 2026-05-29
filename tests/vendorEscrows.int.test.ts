@@ -1,19 +1,12 @@
-import { PrismaClient, EscrowState } from '@prisma/client';
+import { PrismaClient, EscrowState, Prisma } from '@prisma/client';
 import request from 'supertest';
 import express, { Request, Response, NextFunction } from 'express';
-import { Decimal } from '@prisma/client/runtime/library';
 
 // 1. Setup Express app, routing, and controllers matching Express/Fastify compatibility
 const app = express();
 app.use(express.json());
 
-const prisma = new PrismaClient({
-  datasources: {
-    db: {
-      url: process.env.TEST_DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/escrow_test?schema=public',
-    },
-  },
-});
+const prisma = new PrismaClient();
 
 // Mock authentication middleware signature expected by the endpoint
 interface AuthenticatedRequest extends Request {
@@ -116,17 +109,17 @@ describe('GET /vendor/escrows Integration Tests', () => {
     // Seed exactly 10 test escrows across multiple states
     const testEscrows = [
       // Vendor A
-      { itemName: 'Item 1', itemRef: 'REF-1', amount: new Decimal('100.00'), currency: 'USD', buyerAddress, vendorAddress: vendorAddressA, state: EscrowState.SHIPPED },
-      { itemName: 'Item 2', itemRef: 'REF-2', amount: new Decimal('250.00'), currency: 'USD', buyerAddress, vendorAddress: vendorAddressA, state: EscrowState.SHIPPED },
-      { itemName: 'Item 3', itemRef: 'REF-3', amount: new Decimal('50.00'), currency: 'USD', buyerAddress, vendorAddress: vendorAddressA, state: EscrowState.CREATED },
-      { itemName: 'Item 4', itemRef: 'REF-4', amount: new Decimal('500.00'), currency: 'USD', buyerAddress, vendorAddress: vendorAddressA, state: EscrowState.FUNDED },
-      { itemName: 'Item 5', itemRef: 'REF-5', amount: new Decimal('75.00'), currency: 'USD', buyerAddress, vendorAddress: vendorAddressA, state: EscrowState.DELIVERED },
-      { itemName: 'Item 6', itemRef: 'REF-6', amount: new Decimal('150.00'), currency: 'USD', buyerAddress, vendorAddress: vendorAddressA, state: EscrowState.COMPLETED },
-      { itemName: 'Item 7', itemRef: 'REF-7', amount: new Decimal('300.00'), currency: 'USD', buyerAddress, vendorAddress: vendorAddressA, state: EscrowState.REFUNDED },
-      { itemName: 'Item 8', itemRef: 'REF-8', amount: new Decimal('20.00'), currency: 'USD', buyerAddress, vendorAddress: vendorAddressA, state: EscrowState.DISPUTED },
+      { itemName: 'Item 1', itemRef: 'REF-1', amount: new Prisma.Decimal('100.00'), currency: 'USD', buyerAddress, vendorAddress: vendorAddressA, state: EscrowState.SHIPPED },
+      { itemName: 'Item 2', itemRef: 'REF-2', amount: new Prisma.Decimal('250.00'), currency: 'USD', buyerAddress, vendorAddress: vendorAddressA, state: EscrowState.SHIPPED },
+      { itemName: 'Item 3', itemRef: 'REF-3', amount: new Prisma.Decimal('50.00'), currency: 'USD', buyerAddress, vendorAddress: vendorAddressA, state: EscrowState.CREATED },
+      { itemName: 'Item 4', itemRef: 'REF-4', amount: new Prisma.Decimal('500.00'), currency: 'USD', buyerAddress, vendorAddress: vendorAddressA, state: EscrowState.FUNDED },
+      { itemName: 'Item 5', itemRef: 'REF-5', amount: new Prisma.Decimal('75.00'), currency: 'USD', buyerAddress, vendorAddress: vendorAddressA, state: EscrowState.DELIVERED },
+      { itemName: 'Item 6', itemRef: 'REF-6', amount: new Prisma.Decimal('150.00'), currency: 'USD', buyerAddress, vendorAddress: vendorAddressA, state: EscrowState.COMPLETED },
+      { itemName: 'Item 7', itemRef: 'REF-7', amount: new Prisma.Decimal('300.00'), currency: 'USD', buyerAddress, vendorAddress: vendorAddressA, state: EscrowState.REFUNDED },
+      { itemName: 'Item 8', itemRef: 'REF-8', amount: new Prisma.Decimal('20.00'), currency: 'USD', buyerAddress, vendorAddress: vendorAddressA, state: EscrowState.DISPUTED },
       // Vendor B
-      { itemName: 'Item 9', itemRef: 'REF-9', amount: new Decimal('800.00'), currency: 'USD', buyerAddress, vendorAddress: vendorAddressB, state: EscrowState.SHIPPED },
-      { itemName: 'Item 10', itemRef: 'REF-10', amount: new Decimal('90.00'), currency: 'USD', buyerAddress, vendorAddress: vendorAddressB, state: EscrowState.FUNDED },
+      { itemName: 'Item 9', itemRef: 'REF-9', amount: new Prisma.Decimal('800.00'), currency: 'USD', buyerAddress, vendorAddress: vendorAddressB, state: EscrowState.SHIPPED },
+      { itemName: 'Item 10', itemRef: 'REF-10', amount: new Prisma.Decimal('90.00'), currency: 'USD', buyerAddress, vendorAddress: vendorAddressB, state: EscrowState.FUNDED },
     ];
 
     for (const escrowData of testEscrows) {

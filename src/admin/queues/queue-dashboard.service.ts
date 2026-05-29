@@ -35,12 +35,12 @@ class MockQueue {
     private paused = false,
   ) {}
 
-  async getJobCounts(): Promise<MockJobCounts> {
-    return { ...this.counts };
+  getJobCounts(): Promise<MockJobCounts> {
+    return Promise.resolve({ ...this.counts });
   }
 
-  async isPaused(): Promise<boolean> {
-    return this.paused;
+  isPaused(): Promise<boolean> {
+    return Promise.resolve(this.paused);
   }
 }
 
@@ -77,6 +77,7 @@ export class QueueDashboardService {
     }),
   ];
 
+  /** Returns the current queue health summary for the admin dashboard. */
   async getDashboard(): Promise<QueuesDashboardDto> {
     this.logger.log(
       JSON.stringify({ msg: 'admin.queues.dashboard_requested' }),

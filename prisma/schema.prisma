@@ -12,13 +12,15 @@ enum EscrowState {
   SHIPPED
   DELIVERED
   COMPLETED
+  RELEASED
   DISPUTED
   REFUNDED
+  CANCELLED
 }
 
 enum DisputeStatus {
   OPEN
-  IN_REVIEW
+  UNDER_REVIEW
   RESOLVED
 }
 
@@ -33,26 +35,40 @@ model Escrow {
   state         EscrowState    @default(CREATED)
   trackingId    String?
   shippedAt     DateTime?
+  deliveredAt   DateTime?
+  deliveryRecordedAt DateTime?
+  autoReleaseSubmittedAt DateTime?
+  autoReleaseTxHash String?
+  disputeId     String?
+  cancelledAt   DateTime?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   disputes      Dispute[]
   notifications Notification[]
+  vendor        VendorProfile  @relation("VendorEscrows", fields: [vendorAddress], references: [address])
 
   @@index([vendorAddress])
   @@index([buyerAddress])
   @@index([vendorAddress, state])
+  @@index([vendorAddress, itemRef])
+  @@index([state, trackingId])
+  @@index([state, createdAt])
 }
 
 model Dispute {
-  id        String        @id @default(uuid())
-  escrowId  String
-  status    DisputeStatus @default(OPEN)
-  reason    String
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
-  escrow    Escrow        @relation(fields: [escrowId], references: [id], onDelete: Cascade)
+  id           String        @id @default(cuid())
+  escrowId     String        @unique
+  reason       String
+  description  String        @default("")
+  evidenceUrls String[]      @default([])
+  status       DisputeStatus @default(OPEN)
+  resolvedAt   DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  escrow       Escrow        @relation(fields: [escrowId], references: [id], onDelete: Cascade)
 
   @@index([status])
+  @@index([escrowId])
 }
 
 model Notification {
@@ -64,18 +80,8 @@ model Notification {
   message          String
   createdAt        DateTime @default(now())
   escrow           Escrow   @relation(fields: [escrowId], references: [id], onDelete: Cascade)
-}
 
-model Dispute {
-  id         String   @id @default(cuid())
-  escrowId   String   @unique
-  reason     String
-  status     String   @default("OPEN")
-  resolvedAt DateTime?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  escrow Escrow @relation(fields: [escrowId], references: [id], onDelete: Cascade)
+  @@index([escrowId])
 }
 
 model VendorProfile {

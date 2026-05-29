@@ -21,10 +21,12 @@ export interface SpanOptions {
 export class TracingService {
   private readonly tracer = trace.getTracer('trustlink-backend');
 
+  /** Returns whether tracing is enabled for the current runtime. */
   isEnabled(): boolean {
     return isTracingEnabled();
   }
 
+  /** Returns the active OpenTelemetry span when one is bound to context. */
   getActiveSpan(): Span | undefined {
     return trace.getActiveSpan();
   }
@@ -32,7 +34,9 @@ export class TracingService {
   /**
    * Injects W3C traceparent/tracestate headers for outbound propagation.
    */
-  injectTraceHeaders(carrier: Record<string, string> = {}): Record<string, string> {
+  injectTraceHeaders(
+    carrier: Record<string, string> = {},
+  ): Record<string, string> {
     propagation.inject(context.active(), carrier);
     return carrier;
   }
@@ -80,6 +84,7 @@ export class TracingService {
     );
   }
 
+  /** Runs a function within a named span and records success or failure. */
   async withSpan<T>(
     name: string,
     options: SpanOptions,
@@ -114,6 +119,7 @@ export class TracingService {
     );
   }
 
+  /** Adds attributes to the active span when tracing context exists. */
   setSpanAttributes(
     attributes: Record<string, string | number | boolean>,
   ): void {

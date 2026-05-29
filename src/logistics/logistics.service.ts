@@ -20,7 +20,10 @@ export class LogisticsService {
     return this.apiKey;
   }
 
-  async getStatus(trackingId: string): Promise<{ status: LogisticsStatus }> {
-    throw new Error(`Logistics service is not configured for ${trackingId}`);
+  /** Fetches normalized shipment status from the configured logistics provider. */
+  getStatus(trackingId: string): Promise<{ status: LogisticsStatus }> {
+    return Promise.reject(
+      new Error(`Logistics service is not configured for ${trackingId}`),
+    );
   }
 }

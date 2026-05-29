@@ -1,6 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
-import { StressTestConfigDto, VirtualProfile, PerformanceThresholds } from './dto/stress-test-config.dto';
+import {
+  StressTestConfigDto,
+  VirtualProfile,
+  PerformanceThresholds,
+} from './dto/stress-test-config.dto';
 import {
   StressTestResult,
   ProfileResult,
@@ -20,6 +24,7 @@ export class StressTestService {
     private readonly configService: ConfigService,
   ) {}
 
+  /** Executes configured virtual-user profiles and returns aggregate load metrics. */
   async runStressTest(config: StressTestConfigDto): Promise<StressTestResult> {
     const testId = this.generateTestId();
     this.logger.log(`Starting stress test: ${config.testName} (ID: ${testId})`);
@@ -49,14 +54,14 @@ export class StressTestService {
       for (let i = 0; i < config.profiles.length; i++) {
         const profile = config.profiles[i];
         this.logger.log(`Executing profile ${i + 1}/${config.profiles.length}`);
-        
+
         const profileResult = await this.executeProfile(
           profile,
           i,
           config.thresholds,
           config.enableAlerts ?? true,
         );
-        
+
         result.profileResults.push(profileResult);
       }
 
@@ -67,7 +72,6 @@ export class StressTestService {
 
       this.logger.log(`Stress test completed: ${config.testName}`);
       this.logAlerts(result.alerts);
-
     } catch (error) {
       result.status = 'FAILED';
       result.endTime = Date.now();
@@ -86,12 +90,13 @@ export class StressTestService {
     enableAlerts = true,
   ): Promise<ProfileResult> {
     const metrics: PerformanceMetrics[] = [];
-    const baseUrl = this.configService.get('API_BASE_URL') || 'http://localhost:3000';
+    const baseUrl =
+      this.configService.get('API_BASE_URL') || 'http://localhost:3000';
     const url = `${baseUrl}${profile.endpoint}`;
-    
+
     this.logger.log(
       `Profile ${profileIndex}: ${profile.concurrentUsers} concurrent users, ` +
-      `${profile.requestsPerSecond} req/s, duration: ${profile.duration}s`
+        `${profile.requestsPerSecond} req/s, duration: ${profile.duration}s`,
     );
 
     const workers = Math.min(profile.concurrentUsers, 100);
@@ -103,14 +108,24 @@ export class StressTestService {
 
     for (let w = 0; w < workers; w++) {
       promises.push(
-        this.runWorker(url, profile.method || 'GET', profile.payload, requestsPerWorker, metrics),
+        this.runWorker(
+          url,
+          profile.method || 'GET',
+          profile.payload,
+          requestsPerWorker,
+          metrics,
+        ),
       );
     }
 
     await Promise.all(promises);
 
-    const result = this.calculateProfileMetrics(metrics, profileIndex, profile.duration);
-    
+    const result = this.calculateProfileMetrics(
+      metrics,
+      profileIndex,
+      profile.duration,
+    );
+
     if (thresholds && enableAlerts) {
       result.alerts = this.checkThresholds(result, thresholds);
     }
@@ -127,7 +142,7 @@ export class StressTestService {
   ): Promise<void> {
     for (let i = 0; i < requestCount; i++) {
       const startTime = Date.now();
-      
+
       try {
         const response = await firstValueFrom(
           this.httpService.request({
@@ -139,7 +154,7 @@ export class StressTestService {
         );
 
         const responseTime = Date.now() - startTime;
-        
+
         metrics.push({
           timestamp: startTime,
           responseTime,
@@ -148,7 +163,7 @@ export class StressTestService {
         });
       } catch (error) {
         const responseTime = Date.now() - startTime;
-        
+
         metrics.push({
           timestamp: startTime,
           responseTime,
@@ -165,14 +180,17 @@ export class StressTestService {
     profileIndex: number,
     duration: number,
   ): ProfileResult {
-    const successful = metrics.filter(m => m.success);
-    const failed = metrics.filter(m => !m.success);
-    const responseTimes = metrics.map(m => m.responseTime).sort((a, b) => a - b);
+    const successful = metrics.filter((m) => m.success);
+    const failed = metrics.filter((m) => !m.success);
+    const responseTimes = metrics
+      .map((m) => m.responseTime)
+      .sort((a, b) => a - b);
 
     const totalRequests = metrics.length;
     const successfulRequests = successful.length;
     const failedRequests = failed.length;
-    const averageResponseTime = responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length;
+    const averageResponseTime =
+      responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length;
     const minResponseTime = responseTimes[0] || 0;
     const maxResponseTime = responseTimes[responseTimes.length - 1] || 0;
 
@@ -205,7 +223,10 @@ export class StressTestService {
     };
   }
 
-  private checkThresholds(profile: ProfileResult, thresholds: PerformanceThresholds): Alert[] {
+  private checkThresholds(
+    profile: ProfileResult,
+    thresholds: PerformanceThresholds,
+  ): Alert[] {
     const alerts: Alert[] = [];
     const timestamp = Date.now();
 
@@ -259,25 +280,34 @@ export class StressTestService {
       totalRequests += profile.totalRequests;
       successfulRequests += profile.successfulRequests;
       failedRequests += profile.failedRequests;
-      
+
       for (const metric of profile.metrics) {
         totalResponseTime += metric.responseTime;
         responseTimeCount++;
       }
-      
+
       result.alerts.push(...profile.alerts);
     }
 
-    const totalDuration = result.profileResults.reduce((sum, p) => sum + p.metrics.length > 0 ? 
-      (p.metrics[p.metrics.length - 1].timestamp - p.metrics[0].timestamp) / 1000 : 0, 0) || 
-      result.profileResults.reduce((sum, p) => sum + 60, 0);
+    const totalDuration =
+      result.profileResults.reduce(
+        (sum, p) =>
+          sum + p.metrics.length > 0
+            ? (p.metrics[p.metrics.length - 1].timestamp -
+                p.metrics[0].timestamp) /
+              1000
+            : 0,
+        0,
+      ) || result.profileResults.reduce((sum, p) => sum + 60, 0);
 
     result.overallMetrics = {
       totalRequests,
       successfulRequests,
       failedRequests,
-      averageResponseTime: responseTimeCount > 0 ? totalResponseTime / responseTimeCount : 0,
-      overallErrorRate: totalRequests > 0 ? (failedRequests / totalRequests) * 100 : 0,
+      averageResponseTime:
+        responseTimeCount > 0 ? totalResponseTime / responseTimeCount : 0,
+      overallErrorRate:
+        totalRequests > 0 ? (failedRequests / totalRequests) * 100 : 0,
       overallThroughput: totalDuration > 0 ? totalRequests / totalDuration : 0,
     };
   }
@@ -289,19 +319,21 @@ export class StressTestService {
     }
 
     this.logger.warn(`⚠️  Generated ${alerts.length} performance alerts:`);
-    
+
     for (const alert of alerts) {
       const emoji = alert.severity === 'CRITICAL' ? '🚨' : '⚠️';
       this.logger.warn(
-        `${emoji} [${alert.type}] ${alert.message} (Value: ${alert.value.toFixed(2)}, Threshold: ${alert.threshold})`
+        `${emoji} [${alert.type}] ${alert.message} (Value: ${alert.value.toFixed(2)}, Threshold: ${alert.threshold})`,
       );
     }
   }
 
+  /** Returns a currently running stress test by ID when present. */
   getActiveTest(testId: string): StressTestResult | undefined {
     return this.activeTests.get(testId);
   }
 
+  /** Returns all currently running stress tests. */
   getAllActiveTests(): StressTestResult[] {
     return Array.from(this.activeTests.values());
   }

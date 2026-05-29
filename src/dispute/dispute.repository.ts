@@ -14,7 +14,7 @@ export class DisputeRepository {
   create(data: {
     escrowId: string;
     reason: string;
-    description: string;
+    description?: string;
     evidenceUrls?: string[];
     status?: DisputeState;
   }): Promise<DisputeRecord> {

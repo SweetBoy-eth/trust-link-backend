@@ -67,22 +67,27 @@ function emit(
 
 @Injectable()
 export class JsonLoggerService extends ConsoleLogger {
+  /** Emits an info-level structured log entry. */
   override log(message: unknown, context?: string): void {
     emit('info', message, context ?? this.context);
   }
 
+  /** Emits an error-level structured log entry with optional stack. */
   override error(message: unknown, stack?: string, context?: string): void {
     emit('error', message, context ?? this.context, stack);
   }
 
+  /** Emits a warn-level structured log entry. */
   override warn(message: unknown, context?: string): void {
     emit('warn', message, context ?? this.context);
   }
 
+  /** Emits a debug-level structured log entry. */
   override debug(message: unknown, context?: string): void {
     emit('debug', message, context ?? this.context);
   }
 
+  /** Emits a trace-level structured log entry for verbose messages. */
   override verbose(message: unknown, context?: string): void {
     emit('trace', message, context ?? this.context);
   }

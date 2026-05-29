@@ -5,6 +5,7 @@ import {
   Injectable,
   NotFoundException,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import { NotificationsService } from '../notifications/notifications.service';
 import { EscrowRecord } from '../prisma/prisma.service';
@@ -26,11 +27,16 @@ export class EscrowService {
   constructor(
     private readonly escrowRepository: EscrowRepository,
     private readonly notificationsService: NotificationsService,
+    @Optional()
     private readonly logisticsService?: LogisticsService,
+    @Optional()
     private readonly cacheService?: CacheService,
   ) {}
 
-  async getTracking(id: string): Promise<{ status: string } & { cached?: boolean }> {
+  /** Returns cached or live shipment tracking status for an escrow. */
+  async getTracking(
+    id: string,
+  ): Promise<{ status: string } & { cached?: boolean }> {
     const escrow = await this.findById(id);
 
     if (!escrow.trackingId) {
@@ -38,6 +44,10 @@ export class EscrowService {
     }
 
     const key = `tracking:${escrow.trackingId}`;
+    if (!this.logisticsService) {
+      throw new NotFoundException('Tracking service not available');
+    }
+
     const cached = await this.cacheService?.get<{ status: string }>(key);
     if (cached) {
       return { ...cached, cached: true };
@@ -48,13 +58,11 @@ export class EscrowService {
       await this.cacheService?.set(key, status, 60);
       return { ...status, cached: false };
     } catch (err) {
-      if (cached) {
-        return { ...cached, cached: true };
-      }
       throw err;
     }
   }
 
+  /** Creates a funded escrow after validating amount and duplicate item reference. */
   async createEscrow(
     dto: CreateEscrowDto,
     vendorAddress: string,
@@ -79,6 +87,7 @@ export class EscrowService {
     };
   }
 
+  /** Loads an escrow by ID or raises a typed not-found error. */
   async findById(id: string): Promise<EscrowRecord> {
     try {
       const escrow = await this.escrowRepository.findById(id);
@@ -97,15 +106,19 @@ export class EscrowService {
   }
 
   /** Returns chronological event history for an escrow; empty array if not found. */
-  async getEvents(id: string): Promise<Array<{ event: string; occurredAt: Date }>> {
+  async getEvents(
+    id: string,
+  ): Promise<Array<{ event: string; occurredAt: Date }>> {
     return this.escrowRepository.findEvents(id);
   }
 
+  /** Returns the public escrow projection safe for client responses. */
   async getPublicEscrow(id: string): Promise<EscrowResponseDto> {
     const escrow = await this.findById(id);
     return this.toPublicEscrow(escrow);
   }
 
+  /** Returns a paginated vendor escrow summary list using query defaults. */
   async findVendorEscrows(
     vendorAddress: string,
     query: {
@@ -147,12 +160,12 @@ export class EscrowService {
     return {
       id: escrow.id,
       itemName: escrow.itemName,
-      itemRef: escrow.itemRef,
+      itemRef: escrow.itemRef ?? '',
       amount: escrow.amount,
       currency: escrow.currency,
       state: escrow.state,
       trackingId: escrow.trackingId,
-      shippedAt: escrow.shippedAt,
+      shippedAt: escrow.shippedAt ?? null,
       createdAt: escrow.createdAt,
       updatedAt: escrow.updatedAt,
     };
@@ -162,7 +175,7 @@ export class EscrowService {
     return {
       id: escrow.id,
       itemName: escrow.itemName,
-      itemRef: escrow.itemRef,
+      itemRef: escrow.itemRef ?? '',
       amount: escrow.amount,
       currency: escrow.currency,
       state: escrow.state,
@@ -176,6 +189,7 @@ export class EscrowService {
     return `https://trust-link.local/pay/${id}`;
   }
 
+  /** Cancels a funded escrow when requested by the buyer or vendor. */
   async cancelEscrow(
     escrowId: string,
     callerAddress: string,
@@ -200,6 +214,7 @@ export class EscrowService {
     return this.escrowRepository.markCancelled(escrowId);
   }
 
+  /** Validates vendor shipment updates and moves a funded escrow to shipped. */
   async handleShipment(
     escrowId: string,
     vendorAddress: string,
@@ -208,44 +223,67 @@ export class EscrowService {
     try {
       // Enhanced validation
       if (!trackingId?.trim()) {
-        throw new BadRequestException('Tracking ID is required and cannot be empty');
+        throw new BadRequestException(
+          'Tracking ID is required and cannot be empty',
+        );
       }
 
       if (trackingId.trim().length < 3) {
-        throw new BadRequestException('Tracking ID must be at least 3 characters long');
+        throw new BadRequestException(
+          'Tracking ID must be at least 3 characters long',
+        );
       }
 
       const escrow = await this.findById(escrowId);
-      
+
       // Authorization check
       if (escrow.vendorAddress !== vendorAddress) {
-        this.logger.warn(`Unauthorized shipment attempt for escrow ${escrowId} by ${vendorAddress}`);
-        throw new ForbiddenException('Only the escrow vendor can ship this order');
+        this.logger.warn(
+          `Unauthorized shipment attempt for escrow ${escrowId} by ${vendorAddress}`,
+        );
+        throw new ForbiddenException(
+          'Only the escrow vendor can ship this order',
+        );
       }
 
       // State validation
       if (escrow.state !== 'FUNDED') {
-        throw new ConflictException(`Cannot ship escrow in ${escrow.state} state. Escrow must be in FUNDED state.`);
+        throw new ConflictException(
+          `Cannot ship escrow in ${escrow.state} state. Escrow must be in FUNDED state.`,
+        );
       }
 
       // Check if already shipped
       if (escrow.trackingId) {
-        throw new ConflictException(`Escrow already shipped with tracking ID: ${escrow.trackingId}`);
+        throw new ConflictException(
+          `Escrow already shipped with tracking ID: ${escrow.trackingId}`,
+        );
       }
 
-      this.logger.log(`Shipping escrow ${escrowId} with tracking ID: ${trackingId}`);
-      
-      const shipped = await this.escrowRepository.markShipped(escrow.id, trackingId.trim());
-      
+      this.logger.log(
+        `Shipping escrow ${escrowId} with tracking ID: ${trackingId}`,
+      );
+
+      const shipped = await this.escrowRepository.markShipped(
+        escrow.id,
+        trackingId.trim(),
+      );
+
       // Notify asynchronously
-      this.notificationsService.notifyShipped(shipped).catch(error => {
-        this.logger.error(`Failed to send shipped notification for escrow ${shipped.id}`, error);
+      this.notificationsService.notifyShipped(shipped).catch((error) => {
+        this.logger.error(
+          `Failed to send shipped notification for escrow ${shipped.id}`,
+          error,
+        );
       });
-      
+
       this.logger.log(`Escrow ${escrowId} shipped successfully`);
       return shipped;
     } catch (error) {
-      this.logger.error(`Failed to ship escrow ${escrowId}: ${error.message}`, error);
+      this.logger.error(
+        `Failed to ship escrow ${escrowId}: ${error.message}`,
+        error,
+      );
       throw error;
     }
   }

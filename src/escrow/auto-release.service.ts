@@ -14,12 +14,14 @@ export class AutoReleaseService {
     private readonly contractService: ContractService,
   ) {}
 
+  /** Scans eligible delivered escrows and submits guarded auto-release transactions. */
   async run(): Promise<void> {
     const cutoff = new Date(
       Date.now() - AUTO_RELEASE_DAYS * 24 * 60 * 60 * 1000,
     );
 
-    const eligible = await this.escrowRepository.findAutoReleaseEligible(cutoff);
+    const eligible =
+      await this.escrowRepository.findAutoReleaseEligible(cutoff);
 
     if (eligible.length === 0) {
       return;

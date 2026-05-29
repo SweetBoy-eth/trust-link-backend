@@ -29,35 +29,38 @@ export class JwtGuard implements CanActivate {
       throw new UnauthorizedException('Authentication required');
     }
 
-    const address = this.extractAddress(token);
-    if (!address) {
+    const user = this.extractUser(token);
+    if (!user) {
       throw new UnauthorizedException('Authentication required');
     }
 
-    request.user = { address };
+    request.user = user;
     return true;
   }
 
   /**
-   * Tries to extract the Stellar address from the token:
+   * Tries to extract authenticated user context from the token:
    * 1. If the token looks like a JWT (3 base64url segments), decode the payload
-   *    and return the `sub` claim.
+   *    and return the sub and optional role claims.
    * 2. Otherwise treat the whole token as a raw address (legacy / test path).
    */
-  private extractAddress(token: string): string | null {
+  private extractUser(token: string): AuthUser | null {
     const parts = token.split('.');
     if (parts.length === 3) {
       try {
         const payload = JSON.parse(
           Buffer.from(parts[1], 'base64url').toString('utf8'),
-        ) as { sub?: string };
+        ) as { role?: unknown; sub?: string };
         if (typeof payload.sub === 'string' && payload.sub) {
-          return payload.sub;
+          return {
+            address: payload.sub,
+            role: typeof payload.role === 'string' ? payload.role : undefined,
+          };
         }
       } catch {
         // not a valid JWT payload — fall through
       }
     }
-    return token || null;
+    return token ? { address: token } : null;
   }
 }

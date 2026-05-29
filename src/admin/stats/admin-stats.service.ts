@@ -6,6 +6,7 @@ import { AdminStatsDto } from './dto/admin-stats.dto';
 export class AdminStatsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /** Aggregates escrow, volume, participant, and dispute totals for admins. */
   async getStats(): Promise<AdminStatsDto> {
     const [allEscrows, allDisputes] = await Promise.all([
       this.prisma.escrow.findMany({}),

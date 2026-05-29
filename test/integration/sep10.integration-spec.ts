@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+
 /**
  * SEP-10 authentication flow — end-to-end integration tests.
  *
@@ -9,11 +9,7 @@
  */
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import {
-  Keypair,
-  Networks,
-  TransactionBuilder,
-} from '@stellar/stellar-sdk';
+import { Keypair, Networks, TransactionBuilder } from '@stellar/stellar-sdk';
 import request from 'supertest';
 import { AppModule } from '../../src/app.module';
 import { Sep10Service } from '../../src/auth/sep10/sep10.service';
@@ -114,7 +110,7 @@ describe('SEP-10 authentication (issue #23)', () => {
     // Build a challenge whose maxTime is already in the past (timeout = -700s).
     // The SDK adds a 300-second grace window, so we need maxTime + 300 < now,
     // i.e. (now - 700) + 300 = now - 400 < now  ✓
-    const expiredXdr = sep10Service.buildChallenge(kp.publicKey(), -700);
+    const expiredXdr = await sep10Service.buildChallenge(kp.publicKey(), -700);
 
     const tx = TransactionBuilder.fromXDR(expiredXdr, Networks.TESTNET);
     tx.sign(kp);

@@ -20,6 +20,11 @@ export interface Config {
   OTEL_SERVICE_NAME?: string;
   OTEL_SERVICE_VERSION?: string;
   OTEL_EXPORTER_OTLP_ENDPOINT?: string;
+  AUTH_CHALLENGE_WINDOW?: number;
+  AUTH_CHALLENGE_LIMIT?: number;
+  PUBLIC_WINDOW?: number;
+  PUBLIC_LIMIT?: number;
+  REFRESH_TOKEN_TTL?: number;
 }
 
 @Injectable()
@@ -28,11 +33,14 @@ export class ConfigService {
     private readonly nestConfigService: NestConfigService<Config, true>,
   ) {}
 
-  get<K extends keyof Config>(key: K): Config[K] {
-    const val = this.nestConfigService.get<Config[K]>(key, { infer: true });
-    return val as Config[K];
+  /** Reads a required typed environment value from Nest configuration. */
+  get<K extends keyof Config>(key: K): Config[K];
+  get<T = unknown>(key: string): T;
+  get<T = unknown>(key: string): T {
+    return this.nestConfigService.get<T>(key, { infer: true }) as T;
   }
 
+  /** Returns the complete normalized application configuration snapshot. */
   get all(): Config {
     return {
       PORT: this.get('PORT'),
@@ -76,14 +84,17 @@ export class ConfigService {
       .filter(Boolean);
   }
 
+  /** Returns true when NODE_ENV is development. */
   isDevelopment(): boolean {
     return this.get('NODE_ENV') === 'development';
   }
 
+  /** Returns true when NODE_ENV is production. */
   isProduction(): boolean {
     return this.get('NODE_ENV') === 'production';
   }
 
+  /** Returns true when NODE_ENV is test. */
   isTest(): boolean {
     return this.get('NODE_ENV') === 'test';
   }

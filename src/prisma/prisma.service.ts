@@ -22,20 +22,20 @@ export type DisputeState = 'OPEN' | 'UNDER_REVIEW' | 'RESOLVED';
 export interface EscrowRecord {
   id: string;
   itemName: string;
-  itemRef: string;
+  itemRef?: string;
   amount: number;
   currency: string;
   buyerAddress: string;
   vendorAddress: string;
   state: EscrowState;
   trackingId: string | null;
-  shippedAt: Date | null;
+  shippedAt?: Date | null;
   deliveredAt: Date | null;
   deliveryRecordedAt: Date | null;
   autoReleaseSubmittedAt: Date | null;
   autoReleaseTxHash: string | null;
   disputeId: string | null;
-  cancelledAt: Date | null;
+  cancelledAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -54,8 +54,8 @@ export interface DisputeRecord {
   id: string;
   escrowId: string;
   reason: string;
-  description: string;
-  evidenceUrls: string[];
+  description?: string;
+  evidenceUrls?: string[];
   status: DisputeState;
   resolvedAt: Date | null;
   createdAt: Date;
@@ -79,6 +79,26 @@ export interface ProcessedWebhookEventRecord {
   processedAt: Date;
 }
 
+export interface RefreshTokenRecord {
+  id: string;
+  userId: string;
+  tokenHash: string;
+  parentTokenId: string | null;
+  revoked: boolean;
+  expiresAt: Date;
+  createdAt: Date;
+}
+
+export interface NonceRecord {
+  id: string;
+  nonce: string;
+  walletAddress: string;
+  challenge: string;
+  used: boolean;
+  expiresAt: Date;
+  createdAt: Date;
+}
+
 type EscrowCreateInput = Omit<
   EscrowRecord,
   | 'id'
@@ -94,6 +114,7 @@ type EscrowCreateInput = Omit<
   | 'createdAt'
   | 'updatedAt'
 > & {
+  itemRef?: string;
   state?: EscrowState;
   trackingId?: string | null;
   shippedAt?: Date | null;
@@ -109,6 +130,7 @@ type DisputeCreateInput = Omit<
   DisputeRecord,
   'id' | 'status' | 'resolvedAt' | 'createdAt' | 'updatedAt' | 'evidenceUrls'
 > & {
+  description?: string;
   status?: DisputeState;
   resolvedAt?: Date | null;
   evidenceUrls?: string[];
@@ -139,7 +161,10 @@ type VendorProfileUpdateInput = Partial<
 >;
 
 type DisputeUpdateInput = Partial<
-  Pick<DisputeRecord, 'status' | 'resolvedAt' | 'reason' | 'escrowId' | 'evidenceUrls'>
+  Pick<
+    DisputeRecord,
+    'status' | 'resolvedAt' | 'reason' | 'escrowId' | 'evidenceUrls'
+  >
 >;
 
 @Injectable()
@@ -149,9 +174,13 @@ export class PrismaService implements OnModuleDestroy {
   private notifications = new Map<string, NotificationRecord>();
   private vendorProfiles = new Map<string, VendorProfileRecord>();
   private webhookEvents = new Map<string, ProcessedWebhookEventRecord>();
+  private refreshTokens = new Map<string, RefreshTokenRecord>();
+  private nonces = new Map<string, NonceRecord>();
   private escrowId = 1;
   private disputeId = 1;
   private notificationId = 1;
+  private refreshTokenId = 1;
+  private nonceId = 1;
 
   escrow = {
     create: ({ data }: { data: EscrowCreateInput }): Promise<EscrowRecord> => {
@@ -214,7 +243,7 @@ export class PrismaService implements OnModuleDestroy {
             'lte' in value
           ) {
             const lte = (value as any).lte as Date;
-            return escrow.shippedAt !== null && escrow.shippedAt <= lte;
+            return escrow.shippedAt != null && escrow.shippedAt <= lte;
           }
 
           return escrow[key as keyof EscrowRecord] === value;
@@ -396,6 +425,119 @@ export class PrismaService implements OnModuleDestroy {
     },
   };
 
+  refreshToken = {
+    create: ({
+      data,
+    }: {
+      data: Omit<RefreshTokenRecord, 'id' | 'createdAt'>;
+    }): Promise<RefreshTokenRecord> => {
+      const token: RefreshTokenRecord = {
+        ...data,
+        id: String(this.refreshTokenId++),
+        parentTokenId: data.parentTokenId ?? null,
+        createdAt: new Date(),
+      };
+      this.refreshTokens.set(token.id, token);
+      return Promise.resolve({ ...token });
+    },
+    findUnique: ({
+      where,
+    }: {
+      where: { id?: string; tokenHash?: string };
+    }): Promise<RefreshTokenRecord | null> => {
+      const token = where.id
+        ? this.refreshTokens.get(where.id)
+        : [...this.refreshTokens.values()].find(
+            (record) => record.tokenHash === where.tokenHash,
+          );
+      return Promise.resolve(token ? { ...token } : null);
+    },
+    update: ({
+      where,
+      data,
+    }: {
+      where: { id: string };
+      data: Partial<Pick<RefreshTokenRecord, 'revoked'>>;
+    }): Promise<RefreshTokenRecord> => {
+      const existing = this.refreshTokens.get(where.id);
+      if (!existing) {
+        throw new Error(`Refresh token ${where.id} not found`);
+      }
+      const updated = { ...existing, ...data };
+      this.refreshTokens.set(where.id, updated);
+      return Promise.resolve({ ...updated });
+    },
+    updateMany: ({
+      where,
+      data,
+    }: {
+      where: { userId?: string };
+      data: Partial<Pick<RefreshTokenRecord, 'revoked'>>;
+    }): Promise<{ count: number }> => {
+      let count = 0;
+      for (const [id, token] of this.refreshTokens.entries()) {
+        if (!where.userId || token.userId === where.userId) {
+          this.refreshTokens.set(id, { ...token, ...data });
+          count++;
+        }
+      }
+      return Promise.resolve({ count });
+    },
+    deleteMany: (): Promise<{ count: number }> => {
+      const count = this.refreshTokens.size;
+      this.refreshTokens.clear();
+      return Promise.resolve({ count });
+    },
+  };
+
+  nonce = {
+    create: ({
+      data,
+    }: {
+      data: Omit<NonceRecord, 'id' | 'createdAt'>;
+    }): Promise<NonceRecord> => {
+      const nonce: NonceRecord = {
+        ...data,
+        id: String(this.nonceId++),
+        createdAt: new Date(),
+      };
+      this.nonces.set(nonce.id, nonce);
+      return Promise.resolve({ ...nonce });
+    },
+    findUnique: ({
+      where,
+    }: {
+      where: { id?: string; nonce?: string };
+    }): Promise<NonceRecord | null> => {
+      const nonce = where.id
+        ? this.nonces.get(where.id)
+        : [...this.nonces.values()].find(
+            (record) => record.nonce === where.nonce,
+          );
+      return Promise.resolve(nonce ? { ...nonce } : null);
+    },
+    update: ({
+      where,
+      data,
+    }: {
+      where: { id: string };
+      data: Partial<Pick<NonceRecord, 'used'>>;
+    }): Promise<NonceRecord> => {
+      const existing = this.nonces.get(where.id);
+      if (!existing) {
+        throw new Error(`Nonce ${where.id} not found`);
+      }
+      const updated = { ...existing, ...data };
+      this.nonces.set(where.id, updated);
+      return Promise.resolve({ ...updated });
+    },
+    deleteMany: (): Promise<{ count: number }> => {
+      const count = this.nonces.size;
+      this.nonces.clear();
+      return Promise.resolve({ count });
+    },
+  };
+
   vendorProfile = {
     create: ({
       data,
@@ -403,9 +545,7 @@ export class PrismaService implements OnModuleDestroy {
       data: VendorProfileCreateInput;
     }): Promise<VendorProfileRecord> => {
       if (this.vendorProfiles.has(data.address)) {
-        throw new Error(
-          `Vendor profile for ${data.address} already exists`,
-        );
+        throw new Error(`Vendor profile for ${data.address} already exists`);
       }
       const now = new Date();
       const profile: VendorProfileRecord = {
@@ -449,7 +589,10 @@ export class PrismaService implements OnModuleDestroy {
     },
   };
 
+  /** Clears all in-memory Prisma test data and resets generated IDs. */
   async reset(): Promise<void> {
+    await this.refreshToken.deleteMany();
+    await this.nonce.deleteMany();
     await this.vendorProfile.deleteMany();
     await this.notification.deleteMany();
     await this.dispute.deleteMany();
@@ -458,8 +601,11 @@ export class PrismaService implements OnModuleDestroy {
     this.escrowId = 1;
     this.disputeId = 1;
     this.notificationId = 1;
+    this.refreshTokenId = 1;
+    this.nonceId = 1;
   }
 
+  /** Clears in-memory data when the Nest module is destroyed. */
   async onModuleDestroy(): Promise<void> {
     await this.reset();
   }

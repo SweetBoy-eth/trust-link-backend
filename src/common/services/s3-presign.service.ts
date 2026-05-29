@@ -20,6 +20,7 @@ export class S3PresignService {
     return `${url}?X-Expires=${expiresAt}&X-Signature=${sig}`;
   }
 
+  /** Pre-signs each provided evidence URL using the same simulated scheme. */
   presignAll(urls: string[]): string[] {
     return urls.map((u) => this.presign(u));
   }
