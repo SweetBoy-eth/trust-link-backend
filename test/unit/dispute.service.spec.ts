@@ -16,6 +16,7 @@ import { ContractService } from '../../src/stellar/contract.service';
 import { DisputeController } from '../../src/admin/dispute/dispute.controller';
 import { JwtGuard } from '../../src/auth/guards/jwt.guard';
 import { ConfigService } from '../../src/config/config.service';
+import { AuditLogService } from '../../src/audit-log/audit-log.service';
 
 // ── shared fixture ────────────────────────────────────────────────────────
 
@@ -136,7 +137,7 @@ describe('DisputeService (issue #25)', () => {
 
 // ── endpoint-level tests (admin guard) ───────────────────────────────────
 
-describe('POST /admin/dispute/:id/resolve (admin guard)', () => {
+describe('PATCH /admin/dispute/:id/resolve (admin guard)', () => {
   let app: INestApplication;
   let disputeService: jest.Mocked<DisputeService>;
 
@@ -160,6 +161,7 @@ describe('POST /admin/dispute/:id/resolve (admin guard)', () => {
         { provide: ConfigService, useValue: mockConfigService },
         JwtGuard,
         AdminGuard,
+        AuditLogService,
       ],
     }).compile();
 
@@ -174,24 +176,28 @@ describe('POST /admin/dispute/:id/resolve (admin guard)', () => {
     await app.close();
   });
 
-  it('returns 403 for a non-admin caller', async () => {
+  it('returns 403 for a vendor-role JWT', async () => {
     await request(app.getHttpServer())
-      .post('/admin/dispute/escrow-1/resolve')
-      .set('Authorization', 'Bearer non-admin-address')
+      .patch('/admin/dispute/escrow-1/resolve')
+      .set(
+        'Authorization',
+        'Bearer eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJ2ZW5kb3ItYWRkcmVzcyIsInJvbGUiOiJ2ZW5kb3IifQ.signature',
+      )
       .send({ resolution: 'RELEASE' })
       .expect(403);
   });
 
-  it('returns 201 for the admin caller', async () => {
+  it('returns 200 for an admin-role JWT', async () => {
     const res = await request(app.getHttpServer())
-      .post('/admin/dispute/escrow-1/resolve')
-      .set('Authorization', 'Bearer admin-address')
+      .patch('/admin/dispute/escrow-1/resolve')
+      .set(
+        'Authorization',
+        'Bearer eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJhZG1pbi1hZGRyZXNzIiwicm9sZSI6ImFkbWluIn0.signature',
+      )
       .send({ resolution: 'RELEASE' })
-      .expect(201);
+      .expect(200);
 
-    expect(res.body).toEqual(
-      expect.objectContaining({ state: 'COMPLETED' }),
-    );
+    expect(res.body).toEqual(expect.objectContaining({ state: 'COMPLETED' }));
   });
 
   it('propagates ConflictException (409) from service', async () => {
@@ -200,8 +206,11 @@ describe('POST /admin/dispute/:id/resolve (admin guard)', () => {
     );
 
     await request(app.getHttpServer())
-      .post('/admin/dispute/escrow-1/resolve')
-      .set('Authorization', 'Bearer admin-address')
+      .patch('/admin/dispute/escrow-1/resolve')
+      .set(
+        'Authorization',
+        'Bearer eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJhZG1pbi1hZGRyZXNzIiwicm9sZSI6ImFkbWluIn0.signature',
+      )
       .send({ resolution: 'RELEASE' })
       .expect(409);
   });
@@ -211,8 +220,11 @@ describe('POST /admin/dispute/:id/resolve (admin guard)', () => {
     disputeService.resolve.mockRejectedValue(new ForbiddenException());
 
     await request(app.getHttpServer())
-      .post('/admin/dispute/escrow-1/resolve')
-      .set('Authorization', 'Bearer non-admin-address')
+      .patch('/admin/dispute/escrow-1/resolve')
+      .set(
+        'Authorization',
+        'Bearer eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJ2ZW5kb3ItYWRkcmVzcyIsInJvbGUiOiJ2ZW5kb3IifQ.signature',
+      )
       .send({ resolution: 'RELEASE' })
       .expect(403);
 

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, UseGuards } from '@nestjs/common';
 import { JwtGuard } from '../../auth/guards/jwt.guard';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import type { AuthUser } from '../../auth/auth-user';
@@ -15,7 +15,7 @@ export class DisputeController {
     private readonly auditLogService: AuditLogService,
   ) {}
 
-  @Post('dispute/:id/resolve')
+  @Patch('dispute/:id/resolve')
   async resolve(
     @Param('id') id: string,
     @Body() dto: ResolveDisputeDto,

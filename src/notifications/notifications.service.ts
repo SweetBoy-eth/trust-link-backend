@@ -40,30 +40,40 @@ export class NotificationsService {
     private readonly twilio: TwilioClient = noopTwilio,
   ) {}
 
+  /** Notifies the vendor that escrow funding has been recorded. */
   notifyFunded(escrow: EscrowRecord): Promise<void> {
     return this.dispatch('FUNDED', escrow, escrow.vendorAddress);
   }
 
+  /** Notifies the buyer that the vendor marked the escrow as shipped. */
   notifyShipped(escrow: EscrowRecord): Promise<void> {
     return this.dispatch('SHIPPED', escrow, escrow.buyerAddress);
   }
 
+  /** Notifies the buyer that delivery has been recorded for the escrow. */
   notifyDelivered(escrow: EscrowRecord): Promise<void> {
     return this.dispatch('DELIVERED', escrow, escrow.buyerAddress);
   }
 
+  /** Notifies the vendor that a dispute has been opened. */
   notifyDisputed(escrow: EscrowRecord): Promise<void> {
     return this.dispatch('DISPUTED', escrow, escrow.vendorAddress);
   }
 
-  notifyDisputedAdmin(escrow: EscrowRecord, adminAddress: string): Promise<void> {
+  /** Notifies the configured admin address that a dispute needs attention. */
+  notifyDisputedAdmin(
+    escrow: EscrowRecord,
+    adminAddress: string,
+  ): Promise<void> {
     return this.dispatch('DISPUTED', escrow, adminAddress);
   }
 
+  /** Notifies the buyer that escrow funds have been released. */
   notifyCompleted(escrow: EscrowRecord): Promise<void> {
     return this.dispatch('COMPLETED', escrow, escrow.buyerAddress);
   }
 
+  /** Notifies the buyer that escrow funds have been refunded. */
   notifyRefunded(escrow: EscrowRecord): Promise<void> {
     return this.dispatch('REFUNDED', escrow, escrow.buyerAddress);
   }
@@ -96,7 +106,10 @@ export class NotificationsService {
         const response = await this.sendGrid.send({
           to: recipientAddress,
           templateId: `trustlink-${type.toLowerCase()}`,
-          dynamicTemplateData: { escrowId: escrow.id, itemName: escrow.itemName },
+          dynamicTemplateData: {
+            escrowId: escrow.id,
+            itemName: escrow.itemName,
+          },
           headers: { 'X-Request-ID': requestId },
         });
         providerMessageId = this.extractProviderId(response);
@@ -190,7 +203,7 @@ export class NotificationsService {
 
   /** Resolves after `ms` milliseconds. Extracted for test spying. */
   protected sleep(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   private extractProviderId(response: unknown): string | null {
@@ -208,7 +221,11 @@ export class NotificationsService {
   }
 
   private extractSuccessCode(response: unknown): number | null {
-    if (Array.isArray(response) && typeof response[0] === 'object' && response[0] !== null) {
+    if (
+      Array.isArray(response) &&
+      typeof response[0] === 'object' &&
+      response[0] !== null
+    ) {
       const r = response[0] as Record<string, unknown>;
       if (typeof r.statusCode === 'number') return r.statusCode;
     }

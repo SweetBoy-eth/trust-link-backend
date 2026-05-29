@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { CacheService } from '../cache/cache.service';
 import {
   EscrowRecord,
@@ -13,7 +13,8 @@ const ESCROW_CACHE_TTL = 60; // seconds
 export class EscrowRepository {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly cache: CacheService,
+    @Optional()
+    private readonly cache?: CacheService,
   ) {}
 
   private cacheKey(id: string): string {
@@ -21,7 +22,7 @@ export class EscrowRepository {
   }
 
   private async invalidate(id: string): Promise<void> {
-    await this.cache.del(this.cacheKey(id));
+    await this.cache?.del(this.cacheKey(id));
   }
 
   /** Persists a new escrow record with the given DTO fields and vendor address. */
@@ -54,10 +55,11 @@ export class EscrowRepository {
    * to the database on a cache miss.
    */
   async findById(id: string): Promise<EscrowRecord | null> {
-    const cached = await this.cache.get<EscrowRecord>(this.cacheKey(id));
+    const cached = await this.cache?.get<EscrowRecord>(this.cacheKey(id));
     if (cached) return cached;
     const record = await this.prisma.escrow.findUnique({ where: { id } });
-    if (record) await this.cache.set(this.cacheKey(id), record, ESCROW_CACHE_TTL);
+    if (record)
+      await this.cache?.set(this.cacheKey(id), record, ESCROW_CACHE_TTL);
     return record;
   }
 
@@ -73,14 +75,20 @@ export class EscrowRepository {
 
   /** Updates the escrow state and invalidates its cache entry. */
   async updateState(id: string, state: EscrowState): Promise<EscrowRecord> {
-    const result = await this.prisma.escrow.update({ where: { id }, data: { state } });
+    const result = await this.prisma.escrow.update({
+      where: { id },
+      data: { state },
+    });
     await this.invalidate(id);
     return result;
   }
 
   /** Attaches a tracking ID to the escrow and invalidates its cache entry. */
   async updateTracking(id: string, trackingId: string): Promise<EscrowRecord> {
-    const result = await this.prisma.escrow.update({ where: { id }, data: { trackingId } });
+    const result = await this.prisma.escrow.update({
+      where: { id },
+      data: { trackingId },
+    });
     await this.invalidate(id);
     return result;
   }
@@ -164,7 +172,10 @@ export class EscrowRepository {
    * Transitions the escrow to DELIVERED, records both delivery timestamps,
    * and invalidates the cache.
    */
-  async markDelivered(id: string, deliveredAt = new Date()): Promise<EscrowRecord> {
+  async markDelivered(
+    id: string,
+    deliveredAt = new Date(),
+  ): Promise<EscrowRecord> {
     const result = await this.prisma.escrow.update({
       where: { id },
       data: {
@@ -306,10 +317,15 @@ export class EscrowRepository {
     const events: Array<{ event: string; occurredAt: Date }> = [
       { event: 'CREATED', occurredAt: escrow.createdAt },
     ];
-    if (escrow.shippedAt) events.push({ event: 'SHIPPED', occurredAt: escrow.shippedAt });
-    if (escrow.deliveredAt) events.push({ event: 'DELIVERED', occurredAt: escrow.deliveredAt });
-    if (escrow.cancelledAt) events.push({ event: 'CANCELLED', occurredAt: escrow.cancelledAt });
+    if (escrow.shippedAt)
+      events.push({ event: 'SHIPPED', occurredAt: escrow.shippedAt });
+    if (escrow.deliveredAt)
+      events.push({ event: 'DELIVERED', occurredAt: escrow.deliveredAt });
+    if (escrow.cancelledAt)
+      events.push({ event: 'CANCELLED', occurredAt: escrow.cancelledAt });
 
-    return events.sort((a, b) => a.occurredAt.getTime() - b.occurredAt.getTime());
+    return events.sort(
+      (a, b) => a.occurredAt.getTime() - b.occurredAt.getTime(),
+    );
   }
 }

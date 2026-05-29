@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Injectable,
   Logger,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 import * as crypto from 'crypto';
@@ -26,11 +27,13 @@ import { StellarWebhookDto } from './dto/stellar-webhook.dto';
 @Injectable()
 export class StellarWebhookService {
   private readonly logger = new Logger(StellarWebhookService.name);
+  private readonly processedIds = new Set<string>();
 
   constructor(
     private readonly configService: ConfigService,
     private readonly escrowRepository: EscrowRepository,
-    private readonly prisma: PrismaService,
+    @Optional()
+    private readonly prisma?: PrismaService,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -52,10 +55,12 @@ export class StellarWebhookService {
     this.verifySignature(rawBody, signature);
 
     // --- Idempotency check (DB-backed, survives restarts) --------------------
-    const existing = await this.prisma.processedWebhookEvent.findUnique({
-      where: { operationId: dto.id },
-    });
-    if (existing) {
+    const duplicate = this.prisma
+      ? await this.prisma.processedWebhookEvent.findUnique({
+          where: { operationId: dto.id },
+        })
+      : this.processedIds.has(dto.id);
+    if (duplicate) {
       this.logger.log(
         JSON.stringify({
           msg: 'stellar.webhook.duplicate',
@@ -66,17 +71,25 @@ export class StellarWebhookService {
     }
 
     // Persist before processing so concurrent Horizon retries are blocked.
-    await this.prisma.processedWebhookEvent.create({
-      data: { operationId: dto.id },
-    });
+    if (this.prisma) {
+      await this.prisma.processedWebhookEvent.create({
+        data: { operationId: dto.id },
+      });
+    } else {
+      this.processedIds.add(dto.id);
+    }
 
     try {
       await this.processEvent(dto);
     } catch (err) {
       // Roll back the cursor so the event can be retried on the next delivery.
-      await this.prisma.processedWebhookEvent.delete({
-        where: { operationId: dto.id },
-      });
+      if (this.prisma) {
+        await this.prisma.processedWebhookEvent.delete({
+          where: { operationId: dto.id },
+        });
+      } else {
+        this.processedIds.delete(dto.id);
+      }
       throw err;
     }
 
@@ -87,10 +100,16 @@ export class StellarWebhookService {
    * Programmatic processing for replayed operations (no signature verification).
    * Returns true when processed, false when skipped (duplicate).
    */
-  async processOperationDto(dto: StellarWebhookDto): Promise<{ processed: boolean; skipped?: boolean }> {
+  /** Processes replayed operations without signature checks while guarding duplicates. */
+  async processOperationDto(
+    dto: StellarWebhookDto,
+  ): Promise<{ processed: boolean; skipped?: boolean }> {
     if (this.processedIds.has(dto.id)) {
       this.logger.log(
-        JSON.stringify({ msg: 'stellar.replay.duplicate', operationId: dto.id }),
+        JSON.stringify({
+          msg: 'stellar.replay.duplicate',
+          operationId: dto.id,
+        }),
       );
       return { processed: false, skipped: true };
     }

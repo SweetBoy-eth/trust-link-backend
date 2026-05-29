@@ -18,6 +18,7 @@ export class ContractService {
     private readonly server?: StellarServer,
   ) {}
 
+  /** Submits the on-chain dispute resolution transaction and returns its hash. */
   async resolveDispute(
     escrowId: string,
     resolution: 'RELEASE' | 'REFUND',
@@ -39,6 +40,7 @@ export class ContractService {
     return result.hash;
   }
 
+  /** Submits an auto-release transaction, retrying sequence errors up to the limit. */
   async submitAutoRelease(escrowId: string, maxRetries = 2): Promise<string> {
     if (!this.server) {
       throw new ContractCallFailedException('Stellar server is not configured');
@@ -84,6 +86,7 @@ export class ContractService {
     throw new ContractCallFailedException('Max retries exceeded');
   }
 
+  /** Records delivery on-chain and returns the submitted transaction hash. */
   async recordDelivery(escrowId: string): Promise<string> {
     if (!this.server) {
       throw new ContractCallFailedException('Stellar server is not configured');

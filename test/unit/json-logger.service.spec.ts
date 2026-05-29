@@ -60,7 +60,12 @@ describe('JsonLoggerService (issue #81)', () => {
   });
 
   it('structured() includes extra fields in the JSON output', () => {
-    logger.structured('info', 'escrow.created', { escrowId: 'e-1', amount: 100 }, 'EscrowCtx');
+    logger.structured(
+      'log',
+      'escrow.created',
+      { escrowId: 'e-1', amount: 100 },
+      'EscrowCtx',
+    );
     const entry = lastEntry();
     expect(entry.msg).toBe('escrow.created');
     expect(entry.escrowId).toBe('e-1');

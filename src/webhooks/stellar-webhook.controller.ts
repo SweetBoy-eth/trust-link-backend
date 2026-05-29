@@ -8,7 +8,7 @@ import {
   Post,
   Req,
 } from '@nestjs/common';
-import { Request } from 'express';
+import type { Request } from 'express';
 import { StellarWebhookDto } from './dto/stellar-webhook.dto';
 import { StellarWebhookService } from './stellar-webhook.service';
 

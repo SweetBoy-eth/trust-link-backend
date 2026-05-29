@@ -18,6 +18,7 @@ import { TracingMiddleware } from './tracing/tracing.middleware';
 import { TracingModule } from './tracing/tracing.module';
 import { CacheModule } from './cache/cache.module';
 import { ConfigModule } from './config/config.module';
+import { ConfigService } from './config/config.service';
 import { EscrowModule } from './escrow/escrow.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { StellarModule } from './stellar/stellar.module';
@@ -54,7 +55,7 @@ import { CacheService } from './common/cache.service';
     // Webhook receivers
     WebhooksModule, // issue #76 – POST /webhooks/stellar
     StressTestModule,
-    
+
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

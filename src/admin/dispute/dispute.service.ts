@@ -14,6 +14,7 @@ export class DisputeService {
     private readonly contractService: ContractService,
   ) {}
 
+  /** Resolves a dispute by submitting the contract action and finalizing escrow state. */
   async resolve(
     escrowId: string,
     resolution: 'RELEASE' | 'REFUND',

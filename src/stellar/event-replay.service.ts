@@ -8,19 +8,27 @@ import * as path from 'path';
 @Injectable()
 export class EventReplayService implements OnModuleInit {
   private readonly logger = new Logger(EventReplayService.name);
-  private readonly cursorFile = path.resolve(process.cwd(), 'data', 'stellar_cursor.txt');
+  private readonly cursorFile = path.resolve(
+    process.cwd(),
+    'data',
+    'stellar_cursor.txt',
+  );
 
   constructor(
     private readonly config: ConfigService,
     private readonly webhookService: StellarWebhookService,
   ) {}
 
+  /** Replays recent Horizon operations from the persisted cursor on startup. */
   async onModuleInit(): Promise<void> {
     try {
       const network = this.config.get('STELLAR_NETWORK') || 'TESTNET';
-      const horizon = network === 'MAINNET' ? 'https://horizon.stellar.org' : 'https://horizon-testnet.stellar.org';
+      const horizon =
+        network === 'MAINNET'
+          ? 'https://horizon.stellar.org'
+          : 'https://horizon-testnet.stellar.org';
 
-      let cursor = undefined;
+      let cursor: string | undefined = undefined;
       if (fs.existsSync(this.cursorFile)) {
         cursor = fs.readFileSync(this.cursorFile, 'utf8').trim();
         if (!cursor) cursor = undefined;
@@ -59,7 +67,10 @@ export class EventReplayService implements OnModuleInit {
 
       this.logger.log(`Event replay processed ${records.length} operations`);
     } catch (err) {
-      this.logger.warn('Event replay failed: ' + (err instanceof Error ? err.message : String(err)));
+      this.logger.warn(
+        'Event replay failed: ' +
+          (err instanceof Error ? err.message : String(err)),
+      );
     }
   }
 }

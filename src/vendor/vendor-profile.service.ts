@@ -13,6 +13,7 @@ import { VendorProfileRepository } from './vendor-profile.repository';
 export class VendorProfileService {
   constructor(private readonly repository: VendorProfileRepository) {}
 
+  /** Creates a vendor profile when one does not already exist for the address. */
   async createProfile(
     address: string,
     dto: CreateVendorProfileDto,
@@ -24,6 +25,7 @@ export class VendorProfileService {
     return this.repository.create(address, dto);
   }
 
+  /** Returns a vendor profile by address or raises a not-found error. */
   async getProfile(address: string): Promise<VendorProfileRecord> {
     const profile = await this.repository.findByAddress(address);
     if (!profile) {
@@ -32,6 +34,7 @@ export class VendorProfileService {
     return profile;
   }
 
+  /** Applies non-empty vendor profile updates after confirming the profile exists. */
   async updateProfile(
     address: string,
     dto: UpdateVendorProfileDto,

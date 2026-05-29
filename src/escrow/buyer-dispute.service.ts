@@ -34,6 +34,7 @@ export class BuyerDisputeService {
     private readonly configService: ConfigService,
   ) {}
 
+  /** Opens a dispute for an escrow participant and notifies vendor and admin channels. */
   async openDispute(
     escrowId: string,
     callerAddress: string,
@@ -72,6 +73,7 @@ export class BuyerDisputeService {
     return this.toResponse(dispute);
   }
 
+  /** Returns the dispute for an escrow after verifying caller participation. */
   async getDispute(
     escrowId: string,
     callerAddress: string,
@@ -103,8 +105,10 @@ export class BuyerDisputeService {
       id: dispute.id,
       escrowId: dispute.escrowId,
       reason: dispute.reason,
-      description: dispute.description,
-      evidenceUrls: this.s3PresignService.presignAll(dispute.evidenceUrls),
+      description: dispute.description ?? '',
+      evidenceUrls: this.s3PresignService.presignAll(
+        dispute.evidenceUrls ?? [],
+      ),
       status: dispute.status,
       resolvedAt: dispute.resolvedAt,
       createdAt: dispute.createdAt,
