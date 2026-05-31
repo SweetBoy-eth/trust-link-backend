@@ -229,7 +229,10 @@ describe('TrackingPollWorker — interval scheduling & polling loop (issue #46)'
       ]);
       logisticsService.getStatus.mockRejectedValue(new Error('carrier down'));
       const loggerError = jest
-        .spyOn((worker as unknown as { logger: { error: jest.Mock } }).logger, 'error')
+        .spyOn(
+          (worker as unknown as { logger: { error: jest.Mock } }).logger,
+          'error',
+        )
         .mockImplementation(() => undefined);
 
       await expect(worker.run()).resolves.toBeUndefined();

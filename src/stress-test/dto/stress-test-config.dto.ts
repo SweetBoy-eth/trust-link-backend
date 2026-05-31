@@ -1,4 +1,12 @@
-import { IsNumber, IsString, IsArray, IsOptional, Min, Max, IsBoolean } from 'class-validator';
+import {
+  IsNumber,
+  IsString,
+  IsArray,
+  IsOptional,
+  Min,
+  Max,
+  IsBoolean,
+} from 'class-validator';
 
 export class VirtualProfile {
   @IsNumber()

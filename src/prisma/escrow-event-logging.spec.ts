@@ -85,7 +85,7 @@ describe('Escrow state-transition logging (#71/#72)', () => {
 
   it('logs the full lifecycle driven through EscrowRepository', async () => {
     const repo = new EscrowRepository(prisma);
-    const escrow = await repo.create(baseEscrow as never, baseEscrow.vendorAddress);
+    const escrow = await repo.create(baseEscrow, baseEscrow.vendorAddress);
     await repo.markShipped(escrow.id, 'TRACK-1');
     await repo.markCompleted(escrow.id);
 
@@ -102,9 +102,16 @@ describe('Escrow state-transition logging (#71/#72)', () => {
   it('scopes events per escrow', async () => {
     const a = await prisma.escrow.create({ data: baseEscrow });
     const b = await prisma.escrow.create({ data: baseEscrow });
-    await prisma.escrow.update({ where: { id: a.id }, data: { state: 'SHIPPED' } });
+    await prisma.escrow.update({
+      where: { id: a.id },
+      data: { state: 'SHIPPED' },
+    });
 
-    expect(await prisma.escrowEvent.findMany({ where: { escrowId: a.id } })).toHaveLength(2);
-    expect(await prisma.escrowEvent.findMany({ where: { escrowId: b.id } })).toHaveLength(1);
+    expect(
+      await prisma.escrowEvent.findMany({ where: { escrowId: a.id } }),
+    ).toHaveLength(2);
+    expect(
+      await prisma.escrowEvent.findMany({ where: { escrowId: b.id } }),
+    ).toHaveLength(1);
   });
 });

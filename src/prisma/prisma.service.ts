@@ -282,10 +282,9 @@ export class PrismaService implements OnModuleDestroy {
             value !== null &&
             'lte' in value
           ) {
-
-
             const { lte } = value;
-            const field = key === 'shippedAt' ? escrow.shippedAt : escrow.deliveredAt;
+            const field =
+              key === 'shippedAt' ? escrow.shippedAt : escrow.deliveredAt;
             return field !== null && field <= lte;
           }
 
@@ -497,7 +496,9 @@ export class PrismaService implements OnModuleDestroy {
       where?: Partial<Pick<EscrowEventRecord, 'escrowId'>>;
     } = {}): Promise<EscrowEventRecord[]> => {
       const events = [...this.escrowEvents.values()]
-        .filter((event) => !where?.escrowId || event.escrowId === where.escrowId)
+        .filter(
+          (event) => !where?.escrowId || event.escrowId === where.escrowId,
+        )
         .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
       return Promise.resolve(events.map((event) => ({ ...event })));
     },

@@ -28,7 +28,11 @@ export function wrapPrismaWithTracing(
       const value = Reflect.get(target, prop, receiver);
 
       if (typeof prop === 'string' && isTracedModel(prop) && value) {
-        return wrapModelDelegate(value as Record<string, unknown>, prop, tracing);
+        return wrapModelDelegate(
+          value as Record<string, unknown>,
+          prop,
+          tracing,
+        );
       }
 
       if (typeof value === 'function') {

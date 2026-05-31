@@ -1,8 +1,8 @@
-import { 
-  IsNumber, 
-  IsPositive, 
-  IsString, 
-  MinLength, 
+import {
+  IsNumber,
+  IsPositive,
+  IsString,
+  MinLength,
   MaxLength,
   Matches,
   Max,
@@ -29,7 +29,9 @@ export class CreateEscrowDto {
   @IsString()
   @MinLength(3, { message: 'Currency must be at least 3 characters long' })
   @MaxLength(12, { message: 'Currency must not exceed 12 characters' })
-  @Matches(/^[A-Z0-9]+$/, { message: 'Currency must contain only uppercase letters and numbers' })
+  @Matches(/^[A-Z0-9]+$/, {
+    message: 'Currency must contain only uppercase letters and numbers',
+  })
   @Transform(({ value }) => value?.toUpperCase().trim())
   currency!: string;
 

@@ -2,6 +2,20 @@ import { Injectable } from '@nestjs/common';
 
 export type LogisticsStatus = 'PENDING' | 'IN_TRANSIT' | 'DELIVERED';
 
+export interface TrackingEvent {
+  timestamp: Date;
+  status: string;
+  location?: string;
+  description: string;
+}
+
+export interface TrackingDetails {
+  status: LogisticsStatus;
+  estimatedDelivery?: Date;
+  carrier?: string;
+  events: TrackingEvent[];
+}
+
 @Injectable()
 export class LogisticsService {
   private apiKey: string | null = null;
@@ -22,6 +36,13 @@ export class LogisticsService {
 
   /** Fetches normalized shipment status from the configured logistics provider. */
   getStatus(trackingId: string): Promise<{ status: LogisticsStatus }> {
+    return Promise.reject(
+      new Error(`Logistics service is not configured for ${trackingId}`),
+    );
+  }
+
+  /** Fetches detailed tracking information including events from the logistics provider. */
+  getTrackingDetails(trackingId: string): Promise<TrackingDetails> {
     return Promise.reject(
       new Error(`Logistics service is not configured for ${trackingId}`),
     );

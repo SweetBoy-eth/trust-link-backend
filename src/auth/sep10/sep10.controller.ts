@@ -1,4 +1,12 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { IsString, MinLength } from 'class-validator';
 import { SkipThrottle } from '@nestjs/throttler';
 import { IsStellarAddress } from '../../common/validators/stellar-address.validator';

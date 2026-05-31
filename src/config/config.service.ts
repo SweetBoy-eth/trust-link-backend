@@ -83,8 +83,12 @@ export class ConfigService {
    */
   getDatabaseUrl(): string {
     const base = this.get('DATABASE_URL');
-    const limit = this.nestConfigService.get('DB_POOL_CONNECTION_LIMIT', { infer: true });
-    const timeoutMs = this.nestConfigService.get('DB_POOL_TIMEOUT_MS', { infer: true });
+    const limit = this.nestConfigService.get('DB_POOL_CONNECTION_LIMIT', {
+      infer: true,
+    });
+    const timeoutMs = this.nestConfigService.get('DB_POOL_TIMEOUT_MS', {
+      infer: true,
+    });
 
     if (!limit && !timeoutMs) return base;
 

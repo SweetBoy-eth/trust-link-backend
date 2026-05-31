@@ -16,18 +16,15 @@ import {
 } from '@opentelemetry/semantic-conventions';
 
 const isTest = process.env.NODE_ENV === 'test';
-const isEnabled =
-  !isTest && process.env.OTEL_ENABLED !== 'false';
+const isEnabled = !isTest && process.env.OTEL_ENABLED !== 'false';
 
 let sdk: NodeSDK | undefined;
 
 if (isEnabled) {
   propagation.setGlobalPropagator(new W3CTraceContextPropagator());
 
-  const serviceName =
-    process.env.OTEL_SERVICE_NAME ?? 'trustlink-backend';
-  const serviceVersion =
-    process.env.OTEL_SERVICE_VERSION ?? '1.0.0';
+  const serviceName = process.env.OTEL_SERVICE_NAME ?? 'trustlink-backend';
+  const serviceVersion = process.env.OTEL_SERVICE_VERSION ?? '1.0.0';
   const otlpEndpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT?.replace(
     /\/$/,
     '',

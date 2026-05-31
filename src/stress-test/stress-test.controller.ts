@@ -10,7 +10,9 @@ export class StressTestController {
   constructor(private readonly stressTestService: StressTestService) {}
 
   @Post()
-  async runStressTest(@Body() config: StressTestConfigDto): Promise<StressTestResult> {
+  async runStressTest(
+    @Body() config: StressTestConfigDto,
+  ): Promise<StressTestResult> {
     this.logger.log(`Received stress test request: ${config.testName}`);
     return await this.stressTestService.runStressTest(config);
   }

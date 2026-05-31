@@ -155,7 +155,13 @@ describe('POST /escrow integration (issue #20)', () => {
     const response = await request(app.getHttpServer())
       .get('/vendor/escrows')
       .set('Authorization', 'Bearer vendor-address')
-      .query({ state: 'FUNDED', sort: 'amount', order: 'desc', page: 1, limit: 2 })
+      .query({
+        state: 'FUNDED',
+        sort: 'amount',
+        order: 'desc',
+        page: 1,
+        limit: 2,
+      })
       .expect(200);
 
     expect(response.body).toEqual(
@@ -169,6 +175,8 @@ describe('POST /escrow integration (issue #20)', () => {
     expect(response.body.data[0].amount).toBeGreaterThanOrEqual(
       response.body.data[1].amount,
     );
-    expect(response.body.data.every((item: any) => item.id !== undefined)).toBe(true);
+    expect(response.body.data.every((item: any) => item.id !== undefined)).toBe(
+      true,
+    );
   });
 });

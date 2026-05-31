@@ -9,7 +9,8 @@ describe('IsStellarAddressConstraint', () => {
 
   it('should validate valid Stellar addresses', () => {
     // Use a real valid Stellar address format
-    const validAddress = 'GAHK7EEG2WWHVKDNT4CEQFZGKF2LGDSW2IVM4S5DP42RBW3K6BTODB4A';
+    const validAddress =
+      'GAHK7EEG2WWHVKDNT4CEQFZGKF2LGDSW2IVM4S5DP42RBW3K6BTODB4A';
     expect(validator.validate(validAddress)).toBe(true);
   });
 
@@ -22,11 +23,14 @@ describe('IsStellarAddressConstraint', () => {
   });
 
   it('should reject addresses with wrong prefix', () => {
-    const secretKey = 'SAHK7EEG2WWHVKDNT4CEQFZGKF2LGDSW2IVM4S5DP42RBW3K6BTODB4A';
+    const secretKey =
+      'SAHK7EEG2WWHVKDNT4CEQFZGKF2LGDSW2IVM4S5DP42RBW3K6BTODB4A';
     expect(validator.validate(secretKey)).toBe(false);
   });
 
   it('should provide default error message', () => {
-    expect(validator.defaultMessage()).toBe('Address must be a valid Stellar public key');
+    expect(validator.defaultMessage()).toBe(
+      'Address must be a valid Stellar public key',
+    );
   });
 });

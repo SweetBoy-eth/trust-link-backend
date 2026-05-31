@@ -13,7 +13,9 @@ describe('StellarWebhookService (issue #76)', () => {
 
   const SECRET = 'test-webhook-secret';
 
-  const makeDto = (overrides: Partial<StellarWebhookDto> = {}): StellarWebhookDto => ({
+  const makeDto = (
+    overrides: Partial<StellarWebhookDto> = {},
+  ): StellarWebhookDto => ({
     type: 'payment',
     id: 'op-001',
     transaction_hash: 'tx-abc123',
@@ -52,7 +54,7 @@ describe('StellarWebhookService (issue #76)', () => {
   // ── Signature verification ─────────────────────────────────────────────────
 
   it('accepts a valid HMAC-SHA256 signature', async () => {
-    configService.get.mockReturnValue(SECRET as any);
+    configService.get.mockReturnValue(SECRET);
     const dto = makeDto();
     const raw = Buffer.from(JSON.stringify(dto));
     const sig = sign(raw, SECRET);
@@ -65,41 +67,41 @@ describe('StellarWebhookService (issue #76)', () => {
   });
 
   it('rejects a tampered signature', async () => {
-    configService.get.mockReturnValue(SECRET as any);
+    configService.get.mockReturnValue(SECRET);
     const dto = makeDto();
     const raw = Buffer.from(JSON.stringify(dto));
 
-    await expect(
-      service.handleEvent(raw, 'deadbeef', dto),
-    ).rejects.toThrow(UnauthorizedException);
+    await expect(service.handleEvent(raw, 'deadbeef', dto)).rejects.toThrow(
+      UnauthorizedException,
+    );
   });
 
   it('rejects when signature header is missing and secret is configured', async () => {
-    configService.get.mockReturnValue(SECRET as any);
+    configService.get.mockReturnValue(SECRET);
     const dto = makeDto();
     const raw = Buffer.from(JSON.stringify(dto));
 
-    await expect(
-      service.handleEvent(raw, undefined, dto),
-    ).rejects.toThrow(UnauthorizedException);
+    await expect(service.handleEvent(raw, undefined, dto)).rejects.toThrow(
+      UnauthorizedException,
+    );
   });
 
   it('skips signature check when STELLAR_WEBHOOK_SECRET is not configured', async () => {
-    configService.get.mockReturnValue(undefined as any);
+    configService.get.mockReturnValue(undefined);
     const dto = makeDto();
     const raw = Buffer.from(JSON.stringify(dto));
 
     escrowRepository.findByBuyer.mockResolvedValue([]);
 
-    await expect(
-      service.handleEvent(raw, undefined, dto),
-    ).resolves.toEqual({ received: true });
+    await expect(service.handleEvent(raw, undefined, dto)).resolves.toEqual({
+      received: true,
+    });
   });
 
   // ── Idempotency ────────────────────────────────────────────────────────────
 
   it('deduplicates events with the same operation id', async () => {
-    configService.get.mockReturnValue(undefined as any);
+    configService.get.mockReturnValue(undefined);
     const dto = makeDto({ id: 'op-dup' });
     const raw = Buffer.from(JSON.stringify(dto));
 
@@ -110,7 +112,11 @@ describe('StellarWebhookService (issue #76)', () => {
     // Second call – duplicate
     const result = await service.handleEvent(raw, undefined, dto);
 
-    expect(result).toEqual({ received: true, skipped: true, reason: 'duplicate' });
+    expect(result).toEqual({
+      received: true,
+      skipped: true,
+      reason: 'duplicate',
+    });
     // findByBuyer should only have been called once
     expect(escrowRepository.findByBuyer).toHaveBeenCalledTimes(1);
   });
@@ -118,7 +124,7 @@ describe('StellarWebhookService (issue #76)', () => {
   // ── Payment handling ───────────────────────────────────────────────────────
 
   it('updates escrow state on a confirmed deposit', async () => {
-    configService.get.mockReturnValue(undefined as any);
+    configService.get.mockReturnValue(undefined);
     const dto = makeDto({ to: 'GBUYER001' });
     const raw = Buffer.from(JSON.stringify(dto));
 
@@ -152,11 +158,14 @@ describe('StellarWebhookService (issue #76)', () => {
     const result = await service.handleEvent(raw, undefined, dto);
 
     expect(result).toEqual({ received: true });
-    expect(escrowRepository.updateState).toHaveBeenCalledWith('escrow-1', 'FUNDED');
+    expect(escrowRepository.updateState).toHaveBeenCalledWith(
+      'escrow-1',
+      'FUNDED',
+    );
   });
 
   it('does nothing when no matching escrow is found', async () => {
-    configService.get.mockReturnValue(undefined as any);
+    configService.get.mockReturnValue(undefined);
     const dto = makeDto({ to: 'GUNKNOWN' });
     const raw = Buffer.from(JSON.stringify(dto));
 
@@ -169,7 +178,7 @@ describe('StellarWebhookService (issue #76)', () => {
   });
 
   it('throws BadRequestException when payment event has no destination', async () => {
-    configService.get.mockReturnValue(undefined as any);
+    configService.get.mockReturnValue(undefined);
     const dto = makeDto({ to: undefined });
     const raw = Buffer.from(JSON.stringify(dto));
 
@@ -179,7 +188,7 @@ describe('StellarWebhookService (issue #76)', () => {
   });
 
   it('silently ignores unhandled event types', async () => {
-    configService.get.mockReturnValue(undefined as any);
+    configService.get.mockReturnValue(undefined);
     const dto = makeDto({ type: 'account_created', to: undefined });
     const raw = Buffer.from(JSON.stringify(dto));
 

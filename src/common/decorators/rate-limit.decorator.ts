@@ -8,5 +8,5 @@ export interface RateLimitOptions {
   message?: string;
 }
 
-export const RateLimit = (options: RateLimitOptions) => 
+export const RateLimit = (options: RateLimitOptions) =>
   SetMetadata(RATE_LIMIT_KEY, options);
