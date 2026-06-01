@@ -1,6 +1,7 @@
 import './tracing/tracing.bootstrap';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import compression from 'compression';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
@@ -102,6 +103,21 @@ async function bootstrap() {
     }),
     new SanitizationPipe(),
   );
+
+  // ── Swagger / OpenAPI docs (issue #47) ────────────────────────────────────
+  // DTOs are annotated with @ApiProperty so the generated schema shows
+  // descriptions and realistic examples for every request/response body.
+  // Served at GET /api/docs (JSON at /api/docs-json).
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('TrustLink API')
+    .setDescription(
+      'REST API for the TrustLink escrow backend. Auto-generated from DTO decorators.',
+    )
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('api/docs', app, document);
 
   // ── Graceful shutdown ──────────────────────────────────────────────────────
   app.enableShutdownHooks();
