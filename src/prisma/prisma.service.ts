@@ -99,9 +99,16 @@ export interface NonceRecord {
   createdAt: Date;
 }
 
+export interface EscrowEventRecord {
+  id: string;
+  escrowId: string;
+  fromState: EscrowState | null;
+  toState: EscrowState;
+  createdAt: Date;
+}
+
 type EscrowCreateInput = Omit<
   EscrowRecord,
-  | 'id'
   | 'state'
   | 'trackingId'
   | 'shippedAt'
@@ -114,6 +121,7 @@ type EscrowCreateInput = Omit<
   | 'createdAt'
   | 'updatedAt'
 > & {
+  id?: string;
   itemRef?: string;
   state?: EscrowState;
   trackingId?: string | null;
@@ -128,8 +136,9 @@ type EscrowCreateInput = Omit<
 
 type DisputeCreateInput = Omit<
   DisputeRecord,
-  'id' | 'status' | 'resolvedAt' | 'createdAt' | 'updatedAt' | 'evidenceUrls'
+  'status' | 'resolvedAt' | 'createdAt' | 'updatedAt' | 'evidenceUrls'
 > & {
+  id?: string;
   description?: string;
   status?: DisputeState;
   resolvedAt?: Date | null;
@@ -181,18 +190,39 @@ export class PrismaService implements OnModuleDestroy {
   private webhookEvents = new Map<string, ProcessedWebhookEventRecord>();
   private refreshTokens = new Map<string, RefreshTokenRecord>();
   private nonces = new Map<string, NonceRecord>();
+  private escrowEvents = new Map<string, EscrowEventRecord>();
   private escrowId = 1;
   private disputeId = 1;
   private notificationId = 1;
   private refreshTokenId = 1;
   private nonceId = 1;
+  private escrowEventId = 1;
+
+  // Single chokepoint for transition logging (#71/#72): every escrow state
+  // change funnels through here so the EscrowEvent audit log is complete. With
+  // a real Prisma client this is the equivalent of a query extension / DB
+  // trigger; here it lives alongside the in-memory escrow mutations.
+  private recordEscrowEvent(
+    escrowId: string,
+    fromState: EscrowState | null,
+    toState: EscrowState,
+  ): void {
+    const event: EscrowEventRecord = {
+      id: String(this.escrowEventId++),
+      escrowId,
+      fromState,
+      toState,
+      createdAt: new Date(),
+    };
+    this.escrowEvents.set(event.id, event);
+  }
 
   escrow = {
     create: ({ data }: { data: EscrowCreateInput }): Promise<EscrowRecord> => {
       const now = new Date();
       const escrow: EscrowRecord = {
         ...data,
-        id: String(this.escrowId++),
+        id: data.id ?? String(this.escrowId++),
         state: data.state ?? 'FUNDED',
         trackingId: data.trackingId ?? null,
         shippedAt: data.shippedAt ?? null,
@@ -206,6 +236,7 @@ export class PrismaService implements OnModuleDestroy {
         updatedAt: now,
       };
       this.escrows.set(escrow.id, escrow);
+      this.recordEscrowEvent(escrow.id, null, escrow.state);
       return Promise.resolve({ ...escrow });
     },
     findUnique: ({
@@ -252,10 +283,9 @@ export class PrismaService implements OnModuleDestroy {
             value !== null &&
             'lte' in value
           ) {
-
-
             const { lte } = value;
-            const field = key === 'shippedAt' ? escrow.shippedAt : escrow.deliveredAt;
+            const field =
+              key === 'shippedAt' ? escrow.shippedAt : escrow.deliveredAt;
             return field !== null && field <= lte;
           }
 
@@ -282,6 +312,9 @@ export class PrismaService implements OnModuleDestroy {
       }
       const updated = { ...existing, ...data, updatedAt: new Date() };
       this.escrows.set(where.id, updated);
+      if (data.state !== undefined && data.state !== existing.state) {
+        this.recordEscrowEvent(where.id, existing.state, data.state);
+      }
       return Promise.resolve({ ...updated });
     },
     deleteMany: (): Promise<{ count: number }> => {
@@ -300,7 +333,7 @@ export class PrismaService implements OnModuleDestroy {
       const now = new Date();
       const dispute: DisputeRecord = {
         ...data,
-        id: String(this.disputeId++),
+        id: data.id ?? String(this.disputeId++),
         status: data.status ?? 'OPEN',
         evidenceUrls: data.evidenceUrls ?? [],
         resolvedAt: data.resolvedAt ?? null,
@@ -318,6 +351,9 @@ export class PrismaService implements OnModuleDestroy {
           disputeId: dispute.id,
           updatedAt: now,
         });
+        if (escrow.state !== 'DISPUTED') {
+          this.recordEscrowEvent(dispute.escrowId, escrow.state, 'DISPUTED');
+        }
       }
 
       return Promise.resolve({ ...dispute });
@@ -434,6 +470,42 @@ export class PrismaService implements OnModuleDestroy {
     deleteMany: (): Promise<{ count: number }> => {
       const count = this.webhookEvents.size;
       this.webhookEvents.clear();
+      return Promise.resolve({ count });
+    },
+  };
+
+  escrowEvent = {
+    create: ({
+      data,
+    }: {
+      data: Omit<EscrowEventRecord, 'id' | 'createdAt'> & {
+        fromState?: EscrowState | null;
+      };
+    }): Promise<EscrowEventRecord> => {
+      const event: EscrowEventRecord = {
+        ...data,
+        id: String(this.escrowEventId++),
+        fromState: data.fromState ?? null,
+        createdAt: new Date(),
+      };
+      this.escrowEvents.set(event.id, event);
+      return Promise.resolve({ ...event });
+    },
+    findMany: ({
+      where,
+    }: {
+      where?: Partial<Pick<EscrowEventRecord, 'escrowId'>>;
+    } = {}): Promise<EscrowEventRecord[]> => {
+      const events = [...this.escrowEvents.values()]
+        .filter(
+          (event) => !where?.escrowId || event.escrowId === where.escrowId,
+        )
+        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+      return Promise.resolve(events.map((event) => ({ ...event })));
+    },
+    deleteMany: (): Promise<{ count: number }> => {
+      const count = this.escrowEvents.size;
+      this.escrowEvents.clear();
       return Promise.resolve({ count });
     },
   };
@@ -608,6 +680,7 @@ export class PrismaService implements OnModuleDestroy {
     await this.nonce.deleteMany();
     await this.vendorProfile.deleteMany();
     await this.notification.deleteMany();
+    await this.escrowEvent.deleteMany();
     await this.dispute.deleteMany();
     await this.escrow.deleteMany();
     await this.processedWebhookEvent.deleteMany();
@@ -616,6 +689,7 @@ export class PrismaService implements OnModuleDestroy {
     this.notificationId = 1;
     this.refreshTokenId = 1;
     this.nonceId = 1;
+    this.escrowEventId = 1;
   }
 
   /** Clears in-memory data when the Nest module is destroyed. */

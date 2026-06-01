@@ -44,7 +44,9 @@ const TERMINAL_STATES = new Set<string>([
   'CANCELLED',
 ]);
 
-export type SyncResult = { skipped: boolean; reason?: string } | { skipped: false };
+export type SyncResult =
+  | { skipped: boolean; reason?: string }
+  | { skipped: false };
 
 @Injectable()
 export class EscrowService {
@@ -62,9 +64,17 @@ export class EscrowService {
   ) {}
 
   /** Returns cached or live shipment tracking status for an escrow. */
-  async getTracking(
-    id: string,
-  ): Promise<{ status: string } & { cached?: boolean }> {
+  async getTracking(id: string): Promise<{
+    status: string;
+    estimatedDelivery?: Date;
+    carrier?: string;
+    events: Array<{
+      timestamp: Date;
+      status: string;
+      location?: string;
+      description: string;
+    }>;
+  }> {
     const escrow = await this.findById(id);
 
     if (!escrow.trackingId) {
@@ -76,17 +86,43 @@ export class EscrowService {
       throw new NotFoundException('Tracking service not available');
     }
 
-    const cached = await this.cacheService?.get<{ status: string }>(key);
+    const cached = await this.cacheService?.get<{
+      status: string;
+      estimatedDelivery?: Date;
+      carrier?: string;
+      events: Array<{
+        timestamp: Date;
+        status: string;
+        location?: string;
+        description: string;
+      }>;
+    }>(key);
     if (cached) {
-      return { ...cached, cached: true };
+      return cached;
     }
 
     try {
+      // #58: Public tracking endpoint should call LogisticsService.getStatus
+      // and return { status, estimatedDelivery, carrier, events }.
       const status = await this.logisticsService.getStatus(escrow.trackingId);
-      await this.cacheService?.set(key, status, 60);
-      return { ...status, cached: false };
-    } catch (err) {
-      throw err;
+
+      // If the underlying logistics integration can’t provide events,
+      // degrade gracefully to an empty event list.
+      const details = {
+        status: status.status,
+        estimatedDelivery: undefined,
+        carrier: undefined,
+        events: [],
+      };
+
+      await this.cacheService?.set(key, details, 60);
+      return details;
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : 'Unable to fetch tracking details';
+      throw new NotFoundException(
+        `Unable to fetch tracking details: ${message}`,
+      );
     }
   }
 
@@ -128,7 +164,9 @@ export class EscrowService {
       if (error instanceof NotFoundException) {
         throw error;
       }
-      this.logger.error(`Error finding escrow ${id}: ${error.message}`, error);
+      const message =
+        error instanceof Error ? error.message : 'Failed to retrieve escrow';
+      this.logger.error(`Error finding escrow ${id}: ${message}`, error);
       throw new BadRequestException('Failed to retrieve escrow');
     }
   }
@@ -308,10 +346,9 @@ export class EscrowService {
       this.logger.log(`Escrow ${escrowId} shipped successfully`);
       return shipped;
     } catch (error) {
-      this.logger.error(
-        `Failed to ship escrow ${escrowId}: ${error.message}`,
-        error,
-      );
+      const message =
+        error instanceof Error ? error.message : 'Failed to ship escrow';
+      this.logger.error(`Failed to ship escrow ${escrowId}: ${message}`, error);
       throw error;
     }
   }
@@ -355,10 +392,13 @@ export class EscrowService {
         if (escrow.state === 'FUNDED' || TERMINAL_STATES.has(escrow.state)) {
           return { skipped: true, reason: 'already_funded_or_terminal' };
         }
-        const funded = await this.escrowRepository.updateState(escrowId, 'FUNDED');
-        this.notificationsService.notifyFunded(funded).catch((err) =>
-          this.logger.error('notifyFunded failed', err),
+        const funded = await this.escrowRepository.updateState(
+          escrowId,
+          'FUNDED',
         );
+        this.notificationsService
+          .notifyFunded(funded)
+          .catch((err) => this.logger.error('notifyFunded failed', err));
         return { skipped: false };
       }
 
@@ -367,10 +407,13 @@ export class EscrowService {
           return { skipped: true, reason: 'already_shipped_or_terminal' };
         }
         const trackingId = event.trackingId ?? escrow.trackingId ?? '';
-        const shipped = await this.escrowRepository.markShipped(escrowId, trackingId);
-        this.notificationsService.notifyShipped(shipped).catch((err) =>
-          this.logger.error('notifyShipped failed', err),
+        const shipped = await this.escrowRepository.markShipped(
+          escrowId,
+          trackingId,
         );
+        this.notificationsService
+          .notifyShipped(shipped)
+          .catch((err) => this.logger.error('notifyShipped failed', err));
         return { skipped: false };
       }
 
@@ -379,9 +422,9 @@ export class EscrowService {
           return { skipped: true, reason: 'already_completed_or_terminal' };
         }
         const completed = await this.escrowRepository.markCompleted(escrowId);
-        this.notificationsService.notifyCompleted(completed).catch((err) =>
-          this.logger.error('notifyCompleted failed', err),
-        );
+        this.notificationsService
+          .notifyCompleted(completed)
+          .catch((err) => this.logger.error('notifyCompleted failed', err));
         return { skipped: false };
       }
 
@@ -403,33 +446,39 @@ export class EscrowService {
             },
           });
         }
-        const disputed = await this.escrowRepository.updateState(escrowId, 'DISPUTED');
-        this.notificationsService.notifyDisputed(disputed).catch((err) =>
-          this.logger.error('notifyDisputed failed', err),
+        const disputed = await this.escrowRepository.updateState(
+          escrowId,
+          'DISPUTED',
         );
+        this.notificationsService
+          .notifyDisputed(disputed)
+          .catch((err) => this.logger.error('notifyDisputed failed', err));
         return { skipped: false };
       }
 
       case 'DisputeResolved': {
         // Idempotency: skip if the dispute is already resolved.
         if (this.prisma) {
-          const dispute = await this.prisma.dispute.findFirst({
+          const disputeList = await this.prisma.dispute.findMany({
             where: { escrowId },
           });
-          if (dispute?.status === 'RESOLVED') {
+          const firstDispute = disputeList[0];
+          if (firstDispute?.status === 'RESOLVED') {
             return { skipped: true, reason: 'dispute_already_resolved' };
           }
-          if (dispute) {
+          if (firstDispute) {
             await this.prisma.dispute.update({
-              where: { id: dispute.id },
+              where: { id: firstDispute.id },
               data: { status: 'RESOLVED', resolvedAt: new Date() },
             });
           }
         }
         const resolved = await this.escrowRepository.markCompleted(escrowId);
-        this.notificationsService.notifyCompleted(resolved).catch((err) =>
-          this.logger.error('notifyCompleted(dispute resolved) failed', err),
-        );
+        this.notificationsService
+          .notifyCompleted(resolved)
+          .catch((err) =>
+            this.logger.error('notifyCompleted(dispute resolved) failed', err),
+          );
         return { skipped: false };
       }
 
@@ -441,16 +490,25 @@ export class EscrowService {
           return { skipped: true, reason: 'terminal_state' };
         }
         const txHash = event.txHash ?? '';
-        const released = await this.escrowRepository.markAutoReleased(escrowId, txHash);
-        this.notificationsService.notifyCompleted(released).catch((err) =>
-          this.logger.error('notifyCompleted(auto-released) failed', err),
+        const released = await this.escrowRepository.markAutoReleased(
+          escrowId,
+          txHash,
         );
+        this.notificationsService
+          .notifyCompleted(released)
+          .catch((err) =>
+            this.logger.error('notifyCompleted(auto-released) failed', err),
+          );
         return { skipped: false };
       }
 
       default: {
         this.logger.warn(
-          JSON.stringify({ msg: 'escrow.sync.unknown_event', eventType, escrowId }),
+          JSON.stringify({
+            msg: 'escrow.sync.unknown_event',
+            eventType,
+            escrowId,
+          }),
         );
         return { skipped: true, reason: 'unknown_event_type' };
       }

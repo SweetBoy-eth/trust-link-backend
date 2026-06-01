@@ -25,7 +25,10 @@ export const SUPPORTED_ASSETS: Record<string, AssetConfig> = {
   },
 };
 
-export function formatBalance(rawAmount: bigint | string, decimals: number): string {
+export function formatBalance(
+  rawAmount: bigint | string,
+  decimals: number,
+): string {
   const raw = BigInt(rawAmount);
   const factor = BigInt(10 ** decimals);
   const whole = raw / factor;

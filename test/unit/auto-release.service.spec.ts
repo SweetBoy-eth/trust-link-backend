@@ -68,7 +68,11 @@ describe('AutoReleaseService.run', () => {
   it('claims, submits, and marks released for each eligible escrow', async () => {
     const escrow = makeShippedEscrow('escrow-1');
     const claimed = { ...escrow, autoReleaseSubmittedAt: new Date() };
-    const released = { ...escrow, state: 'RELEASED' as const, autoReleaseTxHash: 'tx-hash' };
+    const released = {
+      ...escrow,
+      state: 'RELEASED' as const,
+      autoReleaseTxHash: 'tx-hash',
+    };
 
     repository.findAutoReleaseEligible.mockResolvedValue([escrow]);
     repository.markAutoReleaseSubmitting.mockResolvedValue(claimed);
@@ -77,9 +81,14 @@ describe('AutoReleaseService.run', () => {
 
     await service.run();
 
-    expect(repository.markAutoReleaseSubmitting).toHaveBeenCalledWith('escrow-1');
+    expect(repository.markAutoReleaseSubmitting).toHaveBeenCalledWith(
+      'escrow-1',
+    );
     expect(contractService.submitAutoRelease).toHaveBeenCalledWith('escrow-1');
-    expect(repository.markAutoReleased).toHaveBeenCalledWith('escrow-1', 'tx-hash');
+    expect(repository.markAutoReleased).toHaveBeenCalledWith(
+      'escrow-1',
+      'tx-hash',
+    );
   });
 
   it('makes no contract calls when there are 0 eligible escrows', async () => {
@@ -109,7 +118,10 @@ describe('AutoReleaseService.run', () => {
     repository.findAutoReleaseEligible.mockResolvedValue([escrow1, escrow2]);
     repository.markAutoReleaseSubmitting
       .mockResolvedValueOnce({ ...escrow1, autoReleaseSubmittedAt: new Date() })
-      .mockResolvedValueOnce({ ...escrow2, autoReleaseSubmittedAt: new Date() });
+      .mockResolvedValueOnce({
+        ...escrow2,
+        autoReleaseSubmittedAt: new Date(),
+      });
     contractService.submitAutoRelease
       .mockRejectedValueOnce(new Error('contract error'))
       .mockResolvedValueOnce('tx-hash-2');
@@ -129,8 +141,13 @@ describe('AutoReleaseService.run', () => {
       expect.stringContaining('escrow-1'),
       expect.any(Error),
     );
-    expect(repository.clearAutoReleaseSubmitting).toHaveBeenCalledWith('escrow-1');
-    expect(repository.markAutoReleased).toHaveBeenCalledWith('escrow-2', 'tx-hash-2');
+    expect(repository.clearAutoReleaseSubmitting).toHaveBeenCalledWith(
+      'escrow-1',
+    );
+    expect(repository.markAutoReleased).toHaveBeenCalledWith(
+      'escrow-2',
+      'tx-hash-2',
+    );
     expect(repository.markAutoReleased).not.toHaveBeenCalledWith(
       'escrow-1',
       expect.anything(),

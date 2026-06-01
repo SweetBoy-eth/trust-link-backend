@@ -71,9 +71,13 @@ describe('EscrowService.syncStateFromChain', () => {
 
     prisma = {
       dispute: {
-        create: jest.fn().mockResolvedValue({ id: 'dispute-1', status: 'OPEN' }),
+        create: jest
+          .fn()
+          .mockResolvedValue({ id: 'dispute-1', status: 'OPEN' }),
         findFirst: jest.fn().mockResolvedValue(null),
-        update: jest.fn().mockResolvedValue({ id: 'dispute-1', status: 'RESOLVED' }),
+        update: jest
+          .fn()
+          .mockResolvedValue({ id: 'dispute-1', status: 'RESOLVED' }),
       },
     } as unknown as jest.Mocked<PrismaService>;
 
@@ -90,11 +94,13 @@ describe('EscrowService.syncStateFromChain', () => {
 
   describe('EscrowFunded', () => {
     it('transitions CREATED → FUNDED and sends notification', async () => {
-      const escrow = makeEscrow({ state: 'FUNDED' as any });
+      const escrow = makeEscrow({ state: 'FUNDED' });
       repo.findById.mockResolvedValue(makeEscrow({ state: 'CREATED' as any }));
       repo.updateState.mockResolvedValue(escrow);
 
-      const result = await service.syncStateFromChain(makeEvent('EscrowFunded'));
+      const result = await service.syncStateFromChain(
+        makeEvent('EscrowFunded'),
+      );
 
       expect(result).toEqual({ skipped: false });
       expect(repo.updateState).toHaveBeenCalledWith('escrow-1', 'FUNDED');
@@ -106,18 +112,28 @@ describe('EscrowService.syncStateFromChain', () => {
     it('skips when escrow is already FUNDED (idempotent)', async () => {
       repo.findById.mockResolvedValue(makeEscrow({ state: 'FUNDED' }));
 
-      const result = await service.syncStateFromChain(makeEvent('EscrowFunded'));
+      const result = await service.syncStateFromChain(
+        makeEvent('EscrowFunded'),
+      );
 
-      expect(result).toEqual({ skipped: true, reason: 'already_funded_or_terminal' });
+      expect(result).toEqual({
+        skipped: true,
+        reason: 'already_funded_or_terminal',
+      });
       expect(repo.updateState).not.toHaveBeenCalled();
     });
 
     it('skips when escrow is in a terminal state', async () => {
       repo.findById.mockResolvedValue(makeEscrow({ state: 'COMPLETED' }));
 
-      const result = await service.syncStateFromChain(makeEvent('EscrowFunded'));
+      const result = await service.syncStateFromChain(
+        makeEvent('EscrowFunded'),
+      );
 
-      expect(result).toEqual({ skipped: true, reason: 'already_funded_or_terminal' });
+      expect(result).toEqual({
+        skipped: true,
+        reason: 'already_funded_or_terminal',
+      });
     });
   });
 
@@ -140,13 +156,18 @@ describe('EscrowService.syncStateFromChain', () => {
     });
 
     it('skips when escrow is already SHIPPED (idempotent)', async () => {
-      repo.findById.mockResolvedValue(makeEscrow({ state: 'SHIPPED', trackingId: 'TRK-123' }));
+      repo.findById.mockResolvedValue(
+        makeEscrow({ state: 'SHIPPED', trackingId: 'TRK-123' }),
+      );
 
       const result = await service.syncStateFromChain(
         makeEvent('EscrowShipped', { trackingId: 'TRK-123' }),
       );
 
-      expect(result).toEqual({ skipped: true, reason: 'already_shipped_or_terminal' });
+      expect(result).toEqual({
+        skipped: true,
+        reason: 'already_shipped_or_terminal',
+      });
       expect(repo.markShipped).not.toHaveBeenCalled();
     });
   });
@@ -159,7 +180,9 @@ describe('EscrowService.syncStateFromChain', () => {
       repo.findById.mockResolvedValue(makeEscrow({ state: 'SHIPPED' }));
       repo.markCompleted.mockResolvedValue(completed);
 
-      const result = await service.syncStateFromChain(makeEvent('EscrowCompleted'));
+      const result = await service.syncStateFromChain(
+        makeEvent('EscrowCompleted'),
+      );
 
       expect(result).toEqual({ skipped: false });
       expect(repo.markCompleted).toHaveBeenCalledWith('escrow-1');
@@ -170,9 +193,14 @@ describe('EscrowService.syncStateFromChain', () => {
     it('skips when escrow is already COMPLETED (idempotent)', async () => {
       repo.findById.mockResolvedValue(makeEscrow({ state: 'COMPLETED' }));
 
-      const result = await service.syncStateFromChain(makeEvent('EscrowCompleted'));
+      const result = await service.syncStateFromChain(
+        makeEvent('EscrowCompleted'),
+      );
 
-      expect(result).toEqual({ skipped: true, reason: 'already_completed_or_terminal' });
+      expect(result).toEqual({
+        skipped: true,
+        reason: 'already_completed_or_terminal',
+      });
       expect(repo.markCompleted).not.toHaveBeenCalled();
     });
   });
@@ -192,7 +220,10 @@ describe('EscrowService.syncStateFromChain', () => {
       expect(result).toEqual({ skipped: false });
       expect(prisma.dispute.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ escrowId: 'escrow-1', reason: 'Item not delivered' }),
+          data: expect.objectContaining({
+            escrowId: 'escrow-1',
+            reason: 'Item not delivered',
+          }),
         }),
       );
       expect(repo.updateState).toHaveBeenCalledWith('escrow-1', 'DISPUTED');
@@ -203,7 +234,9 @@ describe('EscrowService.syncStateFromChain', () => {
     it('skips when escrow is already DISPUTED (idempotent)', async () => {
       repo.findById.mockResolvedValue(makeEscrow({ state: 'DISPUTED' }));
 
-      const result = await service.syncStateFromChain(makeEvent('DisputeRaised'));
+      const result = await service.syncStateFromChain(
+        makeEvent('DisputeRaised'),
+      );
 
       expect(result).toEqual({ skipped: true, reason: 'already_disputed' });
       expect(prisma.dispute.create).not.toHaveBeenCalled();
@@ -217,9 +250,13 @@ describe('EscrowService.syncStateFromChain', () => {
       const completed = makeEscrow({ state: 'COMPLETED' });
       repo.findById.mockResolvedValue(makeEscrow({ state: 'DISPUTED' }));
       repo.markCompleted.mockResolvedValue(completed);
-      prisma.dispute.findFirst = jest.fn().mockResolvedValue({ id: 'dispute-1', status: 'OPEN' });
+      prisma.dispute.findFirst = jest
+        .fn()
+        .mockResolvedValue({ id: 'dispute-1', status: 'OPEN' });
 
-      const result = await service.syncStateFromChain(makeEvent('DisputeResolved'));
+      const result = await service.syncStateFromChain(
+        makeEvent('DisputeResolved'),
+      );
 
       expect(result).toEqual({ skipped: false });
       expect(prisma.dispute.update).toHaveBeenCalledWith(
@@ -239,9 +276,14 @@ describe('EscrowService.syncStateFromChain', () => {
         .fn()
         .mockResolvedValue({ id: 'dispute-1', status: 'RESOLVED' });
 
-      const result = await service.syncStateFromChain(makeEvent('DisputeResolved'));
+      const result = await service.syncStateFromChain(
+        makeEvent('DisputeResolved'),
+      );
 
-      expect(result).toEqual({ skipped: true, reason: 'dispute_already_resolved' });
+      expect(result).toEqual({
+        skipped: true,
+        reason: 'dispute_already_resolved',
+      });
       expect(repo.markCompleted).not.toHaveBeenCalled();
     });
   });
@@ -250,7 +292,10 @@ describe('EscrowService.syncStateFromChain', () => {
 
   describe('AutoReleased', () => {
     it('marks escrow RELEASED with txHash and sends notification', async () => {
-      const released = makeEscrow({ state: 'RELEASED', autoReleaseTxHash: 'TX-ABC' });
+      const released = makeEscrow({
+        state: 'RELEASED',
+        autoReleaseTxHash: 'TX-ABC',
+      });
       repo.findById.mockResolvedValue(makeEscrow({ state: 'SHIPPED' }));
       repo.markAutoReleased = jest.fn().mockResolvedValue(released);
 
@@ -281,7 +326,9 @@ describe('EscrowService.syncStateFromChain', () => {
     it('returns skipped when escrow is not found', async () => {
       repo.findById.mockResolvedValue(null);
 
-      const result = await service.syncStateFromChain(makeEvent('EscrowFunded'));
+      const result = await service.syncStateFromChain(
+        makeEvent('EscrowFunded'),
+      );
 
       expect(result).toEqual({ skipped: true, reason: 'escrow_not_found' });
     });
@@ -289,7 +336,9 @@ describe('EscrowService.syncStateFromChain', () => {
     it('returns skipped for an unknown event type', async () => {
       repo.findById.mockResolvedValue(makeEscrow());
 
-      const result = await service.syncStateFromChain(makeEvent('UnknownEvent'));
+      const result = await service.syncStateFromChain(
+        makeEvent('UnknownEvent'),
+      );
 
       expect(result).toEqual({ skipped: true, reason: 'unknown_event_type' });
     });

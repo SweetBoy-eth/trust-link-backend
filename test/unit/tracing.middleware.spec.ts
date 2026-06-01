@@ -15,7 +15,9 @@ describe('resolveWorkflow (issue #79)', () => {
   });
 
   it('maps stellar webhook', () => {
-    expect(resolveWorkflow('POST', '/webhooks/stellar')).toBe('webhook.stellar');
+    expect(resolveWorkflow('POST', '/webhooks/stellar')).toBe(
+      'webhook.stellar',
+    );
   });
 
   it('maps admin routes', () => {

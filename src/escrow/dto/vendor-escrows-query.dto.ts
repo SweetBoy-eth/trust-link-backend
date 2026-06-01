@@ -18,7 +18,15 @@ export class VendorEscrowsQueryDto {
     example: 'SHIPPED',
   })
   @IsOptional()
-  @IsIn(['FUNDED', 'SHIPPED', 'DELIVERED', 'RELEASED', 'COMPLETED', 'REFUNDED', 'CANCELLED'])
+  @IsIn([
+    'FUNDED',
+    'SHIPPED',
+    'DELIVERED',
+    'RELEASED',
+    'COMPLETED',
+    'REFUNDED',
+    'CANCELLED',
+  ])
   state?: EscrowState;
 
   @ApiPropertyOptional({

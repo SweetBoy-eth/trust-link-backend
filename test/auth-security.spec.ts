@@ -13,8 +13,17 @@ describe('Auth Security Tests (Refresh, Nonce, Rate Limiting)', () => {
         {
           provide: PrismaService,
           useValue: {
-            nonce: { create: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
-            refreshToken: { create: jest.fn(), findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
+            nonce: {
+              create: jest.fn(),
+              findUnique: jest.fn(),
+              update: jest.fn(),
+            },
+            refreshToken: {
+              create: jest.fn(),
+              findUnique: jest.fn(),
+              update: jest.fn(),
+              updateMany: jest.fn(),
+            },
           },
         },
         {

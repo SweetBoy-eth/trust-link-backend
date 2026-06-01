@@ -14,7 +14,14 @@ import { BuyerDisputeService } from './buyer-dispute.service';
 @Module({
   imports: [PrismaModule, NotificationsModule, DisputeModule],
   controllers: [EscrowController, VendorEscrowController],
-  providers: [EscrowService, EscrowRepository, BuyerDisputeService, S3PresignService, JwtGuard, CacheService],
+  providers: [
+    EscrowService,
+    EscrowRepository,
+    BuyerDisputeService,
+    S3PresignService,
+    JwtGuard,
+    CacheService,
+  ],
   exports: [EscrowService, EscrowRepository],
 })
 export class EscrowModule {}

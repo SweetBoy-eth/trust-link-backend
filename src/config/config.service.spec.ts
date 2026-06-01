@@ -105,7 +105,8 @@ describe('ConfigService', () => {
   it('getAllowedOrigins parses comma-separated origins', async () => {
     const service = await buildService({
       ...VALID_ENV,
-      ALLOWED_ORIGINS: 'https://app.trust-link.io,https://staging.trust-link.io',
+      ALLOWED_ORIGINS:
+        'https://app.trust-link.io,https://staging.trust-link.io',
     });
     expect(service.getAllowedOrigins()).toEqual([
       'https://app.trust-link.io',
