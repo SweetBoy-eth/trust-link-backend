@@ -29,6 +29,7 @@ export class EscrowRepository {
   create(dto: CreateEscrowDto, vendorAddress: string): Promise<EscrowRecord> {
     return this.prisma.escrow.create({
       data: {
+        id: crypto.randomUUID(),
         ...dto,
         vendorAddress,
       },
@@ -240,10 +241,6 @@ export class EscrowRepository {
   /**
    * Returns SHIPPED escrows whose deliveredAt is older than 48 hours and
    * have no open dispute or existing auto-release transaction.
-   *
-   * All predicates are pushed to the database so the query uses the
-   * composite (state, deliveredAt) index rather than a full table scan
-   * followed by in-process filtering.
    */
   findAutoReleaseEligible(referenceTime = new Date()): Promise<EscrowRecord[]> {
     const threshold = new Date(referenceTime.getTime() - 48 * 60 * 60 * 1000);
@@ -261,10 +258,6 @@ export class EscrowRepository {
 
   /**
    * Atomically claims an escrow for auto-release by setting autoReleaseSubmittedAt.
-   * Returns the updated record if the claim succeeded, null if another worker
-   * already holds the lock (autoReleaseSubmittedAt was not null).
-   * In production with Prisma + PostgreSQL this should use a conditional
-   * UPDATE … WHERE autoReleaseSubmittedAt IS NULL to guarantee atomicity.
    */
   async markAutoReleaseSubmitting(id: string): Promise<EscrowRecord | null> {
     const escrow = await this.findById(id);
@@ -328,5 +321,29 @@ export class EscrowRepository {
     return events.sort(
       (a, b) => a.occurredAt.getTime() - b.occurredAt.getTime(),
     );
+  }
+
+  // ── Issue #28 ─────────────────────────────────────────────────────────────
+
+  /**
+   * Persists encrypted buyer contact info on the escrow record.
+   * Both values arrive pre-encrypted from EscrowService — the repository
+   * treats them as opaque strings and never decrypts them.
+   * Invalidates the cache so the next read reflects the update.
+   */
+  async saveBuyerContact(
+    id: string,
+    encryptedEmail: string | null,
+    encryptedPhone: string | null,
+  ): Promise<EscrowRecord> {
+    const result = await this.prisma.escrow.update({
+      where: { id },
+      data: {
+        buyerContactEmail: encryptedEmail,
+        buyerContactPhone: encryptedPhone,
+      },
+    });
+    await this.invalidate(id);
+    return result;
   }
 }

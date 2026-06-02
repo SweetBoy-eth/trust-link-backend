@@ -18,6 +18,7 @@ import { JwtGuard } from '../auth/guards/jwt.guard';
 import { CreateEscrowDto } from './dto/create-escrow.dto';
 import { UpdateShipmentDto } from './dto/update-shipment.dto';
 import { OpenDisputeDto } from './dto/open-dispute.dto';
+import { UpdateBuyerContactDto } from './dto/update-buyer-contact.dto';
 import { EscrowService } from './escrow.service';
 import { BuyerDisputeService } from './buyer-dispute.service';
 import { SkipThrottle, Throttle } from '@nestjs/throttler';
@@ -51,7 +52,7 @@ export class EscrowController {
 
   @Get(':id')
   getEscrow(@Param('id', ParseUUIDPipe) id: string) {
-    return this.escrowService.findById(id);
+    return this.escrowService.getPublicEscrow(id);
   }
 
   @Get(':id/events')
@@ -63,6 +64,21 @@ export class EscrowController {
   @Get(':id/tracking')
   async getTracking(@Param('id', ParseUUIDPipe) id: string) {
     return this.escrowService.getTracking(id);
+  }
+
+  // ── Issue #28 ─────────────────────────────────────────────────────────────
+  // No JwtGuard: the buyer is not authenticated via SEP-10 at payment time.
+  // The endpoint is intentionally unauthenticated — the escrow ID in the URL
+  // acts as the possession proof (it was shared with the buyer by the vendor).
+  // Rate-limited tightly to prevent enumeration.
+  @Patch(':id/buyer-contact')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ public: { limit: 10, ttl: 60000 } })
+  updateBuyerContact(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateBuyerContactDto,
+  ) {
+    return this.escrowService.updateBuyerContact(id, dto);
   }
 
   @Patch(':id/ship')

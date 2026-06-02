@@ -6,6 +6,7 @@ import {
   PrismaService,
 } from '../prisma/prisma.service';
 import { SENDGRID_CLIENT, TWILIO_CLIENT } from './notifications.tokens';
+import { decryptContact } from '../common/sanitization/contact-encryption.util';
 
 interface SendGridClient {
   send(message: Record<string, unknown>): Promise<unknown>;
@@ -45,14 +46,21 @@ export class NotificationsService {
     return this.dispatch('FUNDED', escrow, escrow.vendorAddress);
   }
 
-  /** Notifies the buyer that the vendor marked the escrow as shipped. */
+  /**
+   * Notifies the buyer that the vendor marked the escrow as shipped.
+   * Prefers the stored buyer contact (email/phone) over the Stellar address
+   * so the buyer actually receives the notification at a real channel.
+   */
   notifyShipped(escrow: EscrowRecord): Promise<void> {
-    return this.dispatch('SHIPPED', escrow, escrow.buyerAddress);
+    return this.dispatchToBuyer('SHIPPED', escrow);
   }
 
-  /** Notifies the buyer that delivery has been recorded for the escrow. */
+  /**
+   * Notifies the buyer that delivery has been recorded for the escrow.
+   * Prefers stored buyer contact over Stellar address.
+   */
   notifyDelivered(escrow: EscrowRecord): Promise<void> {
-    return this.dispatch('DELIVERED', escrow, escrow.buyerAddress);
+    return this.dispatchToBuyer('DELIVERED', escrow);
   }
 
   /** Notifies the vendor that a dispute has been opened. */
@@ -68,15 +76,91 @@ export class NotificationsService {
     return this.dispatch('DISPUTED', escrow, adminAddress);
   }
 
-  /** Notifies the buyer that escrow funds have been released. */
+  /**
+   * Notifies the buyer that escrow funds have been released/completed.
+   * Prefers stored buyer contact over Stellar address.
+   */
   notifyCompleted(escrow: EscrowRecord): Promise<void> {
-    return this.dispatch('COMPLETED', escrow, escrow.buyerAddress);
+    return this.dispatchToBuyer('COMPLETED', escrow);
   }
 
-  /** Notifies the buyer that escrow funds have been refunded. */
+  /**
+   * Notifies the buyer that escrow funds have been refunded.
+   * Prefers stored buyer contact over Stellar address.
+   */
   notifyRefunded(escrow: EscrowRecord): Promise<void> {
-    return this.dispatch('REFUNDED', escrow, escrow.buyerAddress);
+    return this.dispatchToBuyer('REFUNDED', escrow);
   }
+
+  // ── Issue #28 ─────────────────────────────────────────────────────────────
+
+  /**
+   * Resolves the buyer's real contact info from the encrypted fields on the
+   * escrow record and dispatches to whichever channel(s) are available.
+   *
+   * Resolution order:
+   *  1. Decrypt buyerContactEmail  → send email to that address
+   *  2. Decrypt buyerContactPhone  → send SMS to that number
+   *  3. Neither stored             → fall back to buyerAddress (Stellar key)
+   *     so the notification record is still written, even if undeliverable.
+   *
+   * Decryption failures are caught and logged rather than thrown — a bad
+   * ciphertext should not block state transitions that triggered the notify.
+   */
+  private async dispatchToBuyer(
+    type: NotificationType,
+    escrow: EscrowRecord,
+  ): Promise<void> {
+    const resolvedEmail = this.tryDecrypt(
+      (escrow as any).buyerContactEmail ?? null,
+      escrow.id,
+      'email',
+    );
+    const resolvedPhone = this.tryDecrypt(
+      (escrow as any).buyerContactPhone ?? null,
+      escrow.id,
+      'phone',
+    );
+
+    if (resolvedEmail) {
+      await this.dispatchEmail(type, escrow, resolvedEmail);
+    }
+
+    if (resolvedPhone) {
+      await this.dispatchSms(type, escrow, resolvedPhone);
+    }
+
+    if (!resolvedEmail && !resolvedPhone) {
+      // No contact info stored yet — fall back to Stellar address so the
+      // notification row is still written for audit purposes.
+      this.logger.warn(
+        `No buyer contact info for escrow ${escrow.id} — falling back to Stellar address`,
+      );
+      await this.dispatch(type, escrow, escrow.buyerAddress);
+    }
+  }
+
+  /**
+   * Attempts to decrypt a stored contact value.
+   * Returns the plaintext on success, null on any failure.
+   */
+  private tryDecrypt(
+    stored: string | null,
+    escrowId: string,
+    field: 'email' | 'phone',
+  ): string | null {
+    if (!stored) return null;
+    try {
+      return decryptContact(stored);
+    } catch (err) {
+      this.logger.error(
+        `Failed to decrypt buyer ${field} for escrow ${escrowId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return null;
+    }
+  }
+
+  // ── Internal dispatch ─────────────────────────────────────────────────────
 
   private async dispatch(
     type: NotificationType,
