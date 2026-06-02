@@ -37,6 +37,8 @@ export interface EscrowRecord {
   autoReleaseTxHash: string | null;
   disputeId: string | null;
   cancelledAt?: Date | null;
+  buyerContactEmail?: string | null;
+  buyerContactPhone?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -158,6 +160,8 @@ type EscrowUpdateInput = Partial<
     | 'autoReleaseTxHash'
     | 'disputeId'
     | 'cancelledAt'
+    | 'buyerContactEmail'
+    | 'buyerContactPhone'
   >
 >;
 
@@ -237,6 +241,8 @@ export class PrismaService implements OnModuleDestroy {
         autoReleaseTxHash: data.autoReleaseTxHash ?? null,
         disputeId: data.disputeId ?? null,
         cancelledAt: data.cancelledAt ?? null,
+        buyerContactEmail: data.buyerContactEmail ?? null,
+        buyerContactPhone: data.buyerContactPhone ?? null,
         createdAt: now,
         updatedAt: now,
       };

@@ -20,6 +20,8 @@ import { CreateEscrowDto } from './dto/create-escrow.dto';
 import { EvidenceUploadResponseDto } from './dto/evidence-upload.dto';
 import { S3PresignService } from '../common/services/s3-presign.service';
 import { EscrowRepository } from './escrow.repository';
+import { UpdateBuyerContactDto } from './dto/update-buyer-contact.dto';
+import { encryptContact } from '../common/sanitization/contact-encryption.util';
 
 export type EscrowWithPaymentUrl = EscrowRecord & {
   paymentUrl: string;
@@ -108,12 +110,8 @@ export class EscrowService {
     }
 
     try {
-      // #58: Public tracking endpoint should call LogisticsService.getStatus
-      // and return { status, estimatedDelivery, carrier, events }.
       const status = await this.logisticsService.getStatus(escrow.trackingId);
 
-      // If the underlying logistics integration can’t provide events,
-      // degrade gracefully to an empty event list.
       const details = {
         status: status.status,
         estimatedDelivery: undefined,
@@ -250,6 +248,8 @@ export class EscrowService {
   }
 
   private toPublicEscrow(escrow: EscrowRecord) {
+    // Explicit allowlist — buyerContactEmail and buyerContactPhone are
+    // deliberately excluded so encrypted contact data never reaches the client.
     return {
       id: escrow.id,
       itemName: escrow.itemName,
@@ -378,7 +378,6 @@ export class EscrowService {
     trackingId: string,
   ): Promise<EscrowRecord> {
     try {
-      // Enhanced validation
       if (!trackingId?.trim()) {
         throw new BadRequestException(
           'Tracking ID is required and cannot be empty',
@@ -393,7 +392,6 @@ export class EscrowService {
 
       const escrow = await this.findById(escrowId);
 
-      // Authorization check
       if (escrow.vendorAddress !== vendorAddress) {
         this.logger.warn(
           `Unauthorized shipment attempt for escrow ${escrowId} by ${vendorAddress}`,
@@ -403,14 +401,12 @@ export class EscrowService {
         );
       }
 
-      // State validation
       if (escrow.state !== 'FUNDED') {
         throw new ConflictException(
           `Cannot ship escrow in ${escrow.state} state. Escrow must be in FUNDED state.`,
         );
       }
 
-      // Check if already shipped
       if (escrow.trackingId) {
         throw new ConflictException(
           `Escrow already shipped with tracking ID: ${escrow.trackingId}`,
@@ -426,7 +422,6 @@ export class EscrowService {
         trackingId.trim(),
       );
 
-      // Notify asynchronously
       this.notificationsService.notifyShipped(shipped).catch((error) => {
         this.logger.error(
           `Failed to send shipped notification for escrow ${shipped.id}`,
@@ -444,25 +439,55 @@ export class EscrowService {
     }
   }
 
-  // ── Issue #40: on-chain event handler ─────────────────────────────────────
+  // ── Issue #28 ─────────────────────────────────────────────────────────────
 
   /**
-   * Receives a parsed Soroban event from the blockchain listener and syncs the
-   * corresponding escrow (and dispute) record in the database.
+   * Stores encrypted buyer contact info (email and/or phone) on the escrow.
    *
-   * Idempotent: calling this method twice with the same event payload is safe —
-   * a record that is already in the expected post-event state is silently
-   * skipped rather than updated again.
+   * The escrow must exist and must not be in a terminal state — there is no
+   * point collecting contact info for a completed or cancelled escrow.
    *
-   * Supported events
-   * ─────────────────
-   * EscrowFunded      → CREATED → FUNDED, notifyFunded
-   * EscrowShipped     → FUNDED  → SHIPPED (with trackingId), notifyShipped
-   * EscrowCompleted   → *       → COMPLETED, notifyCompleted
-   * DisputeRaised     → *       → DISPUTED, creates Dispute row, notifyDisputed
-   * DisputeResolved   → DISPUTED → COMPLETED, marks dispute RESOLVED, notifyCompleted
-   * AutoReleased      → *       → RELEASED (records txHash), notifyCompleted
+   * Each value is encrypted individually with AES-256-GCM before being
+   * handed to the repository. The repository never sees plaintext.
+   *
+   * Returns a minimal acknowledgement — the encrypted values are never
+   * included in any response shape.
    */
+  async updateBuyerContact(
+    escrowId: string,
+    dto: UpdateBuyerContactDto,
+  ): Promise<{ message: string }> {
+    const escrow = await this.findById(escrowId);
+
+    if (TERMINAL_STATES.has(escrow.state)) {
+      throw new ConflictException(
+        `Cannot update buyer contact for an escrow in ${escrow.state} state.`,
+      );
+    }
+
+    const encryptedEmail = dto.email ? encryptContact(dto.email) : null;
+    const encryptedPhone = dto.phone ? encryptContact(dto.phone) : null;
+
+    await this.escrowRepository.saveBuyerContact(
+      escrowId,
+      encryptedEmail,
+      encryptedPhone,
+    );
+
+    this.logger.log(
+      JSON.stringify({
+        msg: 'escrow.buyer_contact.updated',
+        escrowId,
+        hasEmail: Boolean(dto.email),
+        hasPhone: Boolean(dto.phone),
+      }),
+    );
+
+    return { message: 'Buyer contact information saved.' };
+  }
+
+  // ── Issue #40: on-chain event handler ─────────────────────────────────────
+
   async syncStateFromChain(event: SorobanChainEvent): Promise<SyncResult> {
     const { eventType, escrowId } = event;
 
@@ -526,10 +551,10 @@ export class EscrowService {
         if (TERMINAL_STATES.has(escrow.state)) {
           return { skipped: true, reason: 'terminal_state' };
         }
-        // Create the dispute record then flip escrow state.
         if (this.prisma) {
           await this.prisma.dispute.create({
             data: {
+              id: crypto.randomUUID(),
               escrowId,
               reason: event.reason ?? 'on-chain dispute',
               description: '',
@@ -548,7 +573,6 @@ export class EscrowService {
       }
 
       case 'DisputeResolved': {
-        // Idempotency: skip if the dispute is already resolved.
         if (this.prisma) {
           const disputeList = await this.prisma.dispute.findMany({
             where: { escrowId },
