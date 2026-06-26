@@ -1,4 +1,4 @@
-import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 
 export type EscrowState =
   | 'CREATED'
@@ -752,6 +752,36 @@ export class PrismaService implements OnModuleDestroy {
       const profile = this.vendorProfiles.get(where.address);
       return Promise.resolve(profile ? { ...profile } : null);
     },
+    upsert: ({
+      where,
+      create,
+      update,
+    }: {
+      where: { address: string };
+      create: VendorProfileCreateInput;
+      update: VendorProfileUpdateInput;
+    }): Promise<VendorProfileRecord> => {
+      const existing = this.vendorProfiles.get(where.address);
+      if (existing) {
+        const safeUpdate = Object.fromEntries(
+          Object.entries(update).filter(([, v]) => v !== undefined),
+        ) as VendorProfileUpdateInput;
+        const updated = { ...existing, ...safeUpdate, updatedAt: new Date() };
+        this.vendorProfiles.set(where.address, updated);
+        return Promise.resolve({ ...updated });
+      }
+      const now = new Date();
+      const profile: VendorProfileRecord = {
+        ...create,
+        email: create.email ?? null,
+        phone: create.phone ?? null,
+        description: create.description ?? null,
+        createdAt: now,
+        updatedAt: now,
+      };
+      this.vendorProfiles.set(where.address, profile);
+      return Promise.resolve({ ...profile });
+    },
     update: ({
       where,
       data,
@@ -763,7 +793,11 @@ export class PrismaService implements OnModuleDestroy {
       if (!existing) {
         throw new Error(`Vendor profile for ${where.address} not found`);
       }
-      const updated = { ...existing, ...data, updatedAt: new Date() };
+      // Strip undefined so optional DTO fields don't overwrite existing values
+      const safeData = Object.fromEntries(
+        Object.entries(data).filter(([, v]) => v !== undefined),
+      ) as VendorProfileUpdateInput;
+      const updated = { ...existing, ...safeData, updatedAt: new Date() };
       this.vendorProfiles.set(where.address, updated);
       return Promise.resolve({ ...updated });
     },
@@ -831,11 +865,11 @@ export class PrismaService implements OnModuleDestroy {
   ): Promise<T[]> {
     const queryString = query.join('?');
 
-    // Parse the query to extract vendorAddress, startDate, endDate, and timezone
-    const vendorAddress = values[0] as string;
-    const startDate = values[1] as Date;
-    const endDate = values[2] as Date;
-    const timezone = (values[3] as string) || 'UTC';
+    // SQL template order: ${timezone}, ${vendorAddress}, ${startDate}, ${endDate}, ${timezone}
+    const timezone = (values[0] as string) || 'UTC';
+    const vendorAddress = values[1] as string;
+    const startDate = values[2] as Date;
+    const endDate = values[3] as Date;
 
     // Filter escrows by vendor and date range
     const filteredEscrows = [...this.escrows.values()].filter(

@@ -1,10 +1,31 @@
 import { Injectable } from '@nestjs/common';
 import axios from 'axios';
 
+export const DEFAULT_HORIZON_URL = 'https://horizon-testnet.stellar.org';
+
+export interface HorizonConfig {
+  getStellarHorizonUrl(): string;
+}
+
+/**
+ * HorizonService reads STELLAR_HORIZON_URL from an injected HorizonConfig
+ * instead of hard-coding the testnet URL (issue #291).  Falls back to the
+ * testnet default when the environment variable is absent.
+ */
 @Injectable()
 export class HorizonService {
-  private readonly horizonUrl = 'https://horizon-testnet.stellar.org';
+  readonly horizonUrl: string;
   private readonly pollIntervalMs = 100;
+
+  constructor(config?: HorizonConfig) {
+    this.horizonUrl =
+      (config?.getStellarHorizonUrl() || process.env.STELLAR_HORIZON_URL) ??
+      DEFAULT_HORIZON_URL;
+  }
+
+  getHorizonUrl(): string {
+    return this.horizonUrl;
+  }
 
   async pollConfirmation(
     transactionHash: string,
