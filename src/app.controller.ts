@@ -44,11 +44,26 @@ export class AppController {
     private readonly cacheService: CacheService,
   ) {}
 
+  /**
+   * Returns the default application greeting.
+   *
+   * @returns "Hello World!" string
+   */
   @Get()
   getHello(): string {
     return this.appService.getHello();
   }
 
+  /**
+   * Health check endpoint that verifies database connectivity,
+   * Stellar Horizon reachability, and Redis status. Redis is
+   * optional — a disabled or down Redis does not affect the
+   * overall health status.
+   *
+   * @param res - Express response object
+   * @returns Health status with component-level details, version, and timing
+   * @authentication None (public endpoint)
+   */
   @Get('health')
   async getHealth(@Res() res: Response): Promise<Response<HealthBody>> {
     const start = Date.now();
@@ -79,6 +94,12 @@ export class AppController {
       .json(body);
   }
 
+  /**
+   * Returns the application version and environment information.
+   *
+   * @returns Version string, package name, and current environment
+   * @authentication None (public endpoint)
+   */
   @Get('version')
   @HttpCode(HttpStatus.OK)
   getVersion() {

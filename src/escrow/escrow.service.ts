@@ -12,7 +12,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { EscrowRecord } from '../prisma/prisma.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { LogisticsService } from '../logistics/logistics.service';
-import { CacheService } from '../common/cache.service';
+import { CacheService } from '../cache/cache.service';
 import { ContractService } from '../stellar/contract.service';
 import { EscrowResponseDto } from './dto/escrow-response.dto';
 import { EscrowSummaryDto } from './dto/escrow-summary.dto';

@@ -3,6 +3,11 @@ import { IsIn, IsInt, IsOptional, Min } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import type { EscrowState } from '../../prisma/prisma.service';
 
+/**
+ * Query parameters for GET /vendor/escrows. Supports filtering by state,
+ * sorting by date or amount, and cursor-based pagination with page and
+ * limit parameters.
+ */
 export class VendorEscrowsQueryDto {
   @ApiPropertyOptional({
     description: 'Filter escrows by lifecycle state.',
