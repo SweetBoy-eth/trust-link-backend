@@ -12,6 +12,13 @@ import {
   HttpStatus,
   Query,
 } from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthUser } from '../auth/auth-user';
 import { JwtGuard } from '../auth/guards/jwt.guard';
@@ -23,6 +30,7 @@ import { EscrowService } from './escrow.service';
 import { BuyerDisputeService } from './buyer-dispute.service';
 import { SkipThrottle, Throttle } from '@nestjs/throttler';
 
+@ApiTags('Escrow')
 @SkipThrottle({ auth: true }) // Skip auth limit for escrow endpoints
 @Controller('escrow')
 export class EscrowController {
@@ -43,6 +51,13 @@ export class EscrowController {
    * @authentication Requires valid SEP-10 JWT (vendor)
    * @rateLimit 10 requests per 60 seconds
    */
+  @ApiOperation({ summary: 'Create a new escrow transaction' })
+  @ApiResponse({ status: 201, description: 'Escrow created successfully.' })
+  @ApiResponse({ status: 400, description: 'Validation error.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 429, description: 'Too many requests.' })
+  @ApiResponse({ status: 500, description: 'Internal server error.' })
+  @ApiBearerAuth()
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(JwtGuard)
@@ -61,6 +76,13 @@ export class EscrowController {
    * @authentication Requires valid SEP-10 JWT
    * @rateLimit evidence-upload throttler (default 10 per 60 seconds)
    */
+  @ApiOperation({ summary: 'Generate a pre-signed URL for evidence file upload' })
+  @ApiQuery({ name: 'fileName', description: 'Original file name for the evidence being uploaded.', example: 'damage-photo.jpg' })
+  @ApiResponse({ status: 201, description: 'Pre-signed upload URL generated.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 429, description: 'Too many requests.' })
+  @ApiResponse({ status: 500, description: 'Internal server error.' })
+  @ApiBearerAuth()
   @Post('evidence-upload')
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(JwtGuard)
@@ -80,6 +102,11 @@ export class EscrowController {
    * @returns Public escrow data without internal identifiers
    * @throws NotFoundException if escrow does not exist
    */
+  @ApiOperation({ summary: 'Get public escrow details by ID' })
+  @ApiResponse({ status: 200, description: 'Escrow details returned.' })
+  @ApiResponse({ status: 404, description: 'Escrow not found.' })
+  @ApiResponse({ status: 429, description: 'Too many requests.' })
+  @ApiResponse({ status: 500, description: 'Internal server error.' })
   @Get(':id')
   getEscrow(@Param('id', ParseUUIDPipe) id: string) {
     return this.escrowService.getPublicEscrow(id);
@@ -92,6 +119,11 @@ export class EscrowController {
    * @param id - UUID of the escrow
    * @returns Array of event objects with name and timestamp
    */
+  @ApiOperation({ summary: 'Get all events for an escrow transaction' })
+  @ApiResponse({ status: 200, description: 'List of escrow events returned.' })
+  @ApiResponse({ status: 404, description: 'Escrow not found.' })
+  @ApiResponse({ status: 429, description: 'Too many requests.' })
+  @ApiResponse({ status: 500, description: 'Internal server error.' })
   @Get(':id/events')
   @Throttle({ public: { limit: 100, ttl: 60000 } })
   getEvents(@Param('id', ParseUUIDPipe) id: string) {
@@ -106,6 +138,11 @@ export class EscrowController {
    * @returns Tracking status with events, estimated delivery, and carrier info
    * @throws NotFoundException if tracking info is not available or escrow not found
    */
+  @ApiOperation({ summary: 'Get carrier tracking information for an escrow shipment' })
+  @ApiResponse({ status: 200, description: 'Tracking information returned.' })
+  @ApiResponse({ status: 404, description: 'Escrow not found or not yet shipped.' })
+  @ApiResponse({ status: 429, description: 'Too many requests.' })
+  @ApiResponse({ status: 500, description: 'Internal server error.' })
   @Get(':id/tracking')
   async getTracking(@Param('id', ParseUUIDPipe) id: string) {
     return this.escrowService.getTracking(id);
@@ -130,6 +167,12 @@ export class EscrowController {
    * @authentication None (unauthenticated endpoint)
    * @rateLimit 10 requests per 60 seconds
    */
+  @ApiOperation({ summary: 'Update buyer contact details for an escrow' })
+  @ApiResponse({ status: 200, description: 'Buyer contact updated.' })
+  @ApiResponse({ status: 400, description: 'Validation error.' })
+  @ApiResponse({ status: 404, description: 'Escrow not found.' })
+  @ApiResponse({ status: 429, description: 'Too many requests.' })
+  @ApiResponse({ status: 500, description: 'Internal server error.' })
   @Patch(':id/buyer-contact')
   @HttpCode(HttpStatus.OK)
   @Throttle({ public: { limit: 10, ttl: 60000 } })
@@ -154,6 +197,14 @@ export class EscrowController {
    * @authentication Requires valid SEP-10 JWT (vendor)
    * @rateLimit 20 requests per 60 seconds
    */
+  @ApiOperation({ summary: 'Mark an escrow as shipped with a tracking ID' })
+  @ApiResponse({ status: 200, description: 'Escrow marked as shipped.' })
+  @ApiResponse({ status: 400, description: 'Validation error.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 404, description: 'Escrow not found.' })
+  @ApiResponse({ status: 429, description: 'Too many requests.' })
+  @ApiResponse({ status: 500, description: 'Internal server error.' })
+  @ApiBearerAuth()
   @Patch(':id/ship')
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtGuard)
@@ -178,6 +229,13 @@ export class EscrowController {
    * @authentication Requires valid SEP-10 JWT (buyer or vendor)
    * @rateLimit 10 requests per 60 seconds
    */
+  @ApiOperation({ summary: 'Cancel an active escrow transaction' })
+  @ApiResponse({ status: 200, description: 'Escrow cancelled.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 404, description: 'Escrow not found.' })
+  @ApiResponse({ status: 429, description: 'Too many requests.' })
+  @ApiResponse({ status: 500, description: 'Internal server error.' })
+  @ApiBearerAuth()
   @Patch(':id/cancel')
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtGuard)
@@ -203,6 +261,13 @@ export class EscrowController {
    * @authentication Requires valid SEP-10 JWT (buyer or vendor)
    * @rateLimit 10 requests per 60 seconds
    */
+  @ApiOperation({ summary: 'Delete a pending (unfunded) escrow transaction' })
+  @ApiResponse({ status: 200, description: 'Pending escrow deleted.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 404, description: 'Escrow not found.' })
+  @ApiResponse({ status: 429, description: 'Too many requests.' })
+  @ApiResponse({ status: 500, description: 'Internal server error.' })
+  @ApiBearerAuth()
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtGuard)
@@ -228,6 +293,14 @@ export class EscrowController {
    * @authentication Requires valid SEP-10 JWT (buyer)
    * @rateLimit 5 requests per 60 seconds
    */
+  @ApiOperation({ summary: 'Open a dispute for an escrow transaction' })
+  @ApiResponse({ status: 201, description: 'Dispute opened successfully.' })
+  @ApiResponse({ status: 400, description: 'Validation error.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 404, description: 'Escrow not found.' })
+  @ApiResponse({ status: 429, description: 'Too many requests.' })
+  @ApiResponse({ status: 500, description: 'Internal server error.' })
+  @ApiBearerAuth()
   @Post(':id/dispute')
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(JwtGuard)
@@ -252,6 +325,13 @@ export class EscrowController {
    * @authentication Requires valid SEP-10 JWT
    * @rateLimit 30 requests per 60 seconds
    */
+  @ApiOperation({ summary: 'Get the dispute record for an escrow transaction' })
+  @ApiResponse({ status: 200, description: 'Dispute details returned.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 404, description: 'Dispute not found.' })
+  @ApiResponse({ status: 429, description: 'Too many requests.' })
+  @ApiResponse({ status: 500, description: 'Internal server error.' })
+  @ApiBearerAuth()
   @Get(':id/dispute')
   @UseGuards(JwtGuard)
   @Throttle({ public: { limit: 30, ttl: 60000 } })
